@@ -1,5 +1,10 @@
 name: Build and Release
 
+# === 关键修复：添加此权限声明 ===
+permissions:
+  contents: write
+# ==============================
+
 on:
   push:
     tags:
