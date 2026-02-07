@@ -26,11 +26,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller python-docx
+          pip install pyinstaller python-docx pywin32
 
       - name: Build Windows executable
         run: |
-          pyinstaller --onefile --windowed --name=docformat_windows --add-data "scripts;scripts" --hidden-import=docx --hidden-import=lxml docformat_gui.py
+          pyinstaller --onefile --windowed --name=docformat_windows --add-data "scripts;scripts" --hidden-import=docx --hidden-import=lxml --hidden-import=pythoncom --hidden-import=pywintypes docformat_gui.py
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4

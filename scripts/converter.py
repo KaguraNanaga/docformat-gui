@@ -111,7 +111,10 @@ def convert_to_docx(input_path, output_path=None):
     将 .doc/.wps 转换为 .docx
     """
     _ensure_windows()
-    import pythoncom
+    try:
+        import pythoncom
+    except ModuleNotFoundError as e:
+        raise RuntimeError("缺少 pywin32（pythoncom）。请重新下载最新版 EXE 或安装 pywin32 后再试。") from e
 
     input_path = Path(input_path).resolve()
     if not input_path.exists():
@@ -154,7 +157,10 @@ def convert_from_docx(input_path, output_path, format='doc'):
         str: 实际输出的文件路径（如果回退了格式，路径后缀会变）
     """
     _ensure_windows()
-    import pythoncom
+    try:
+        import pythoncom
+    except ModuleNotFoundError as e:
+        raise RuntimeError("缺少 pywin32（pythoncom）。请重新下载最新版 EXE 或安装 pywin32 后再试。") from e
 
     # .wps 格式必须用 WPS Office 来保存
     if format == 'wps':
