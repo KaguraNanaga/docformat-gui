@@ -153,6 +153,7 @@ DEFAULT_CUSTOM_SETTINGS = {
     },
     'first_line_bold': False,
     'page_number': True,
+    'page_number_font': '宋体',
 }
 
 
@@ -208,8 +209,9 @@ class CustomSettingsDialog(tk.Toplevel):
         
         # 窗口设置
         self.title("自定义格式设置")
-        self.geometry("800x860")
-        self.minsize(740, 700)
+        win_w, win_h = 1200, 860
+        self.geometry(f"{win_w}x{win_h}")
+        self.minsize(1040, 700)
         self.configure(bg=Theme.BG)
         self.resizable(True, True)
         
@@ -220,8 +222,8 @@ class CustomSettingsDialog(tk.Toplevel):
         
         # 居中显示
         self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - 800) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - 860) // 2
+        x = parent.winfo_x() + (parent.winfo_width() - win_w) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - win_h) // 2
         self.geometry(f"+{max(0, x)}+{max(0, y)}")
         
         self._create_widgets()
@@ -266,9 +268,11 @@ class CustomSettingsDialog(tk.Toplevel):
         
         self.canvas = tk.Canvas(scroll_container, bg=Theme.BG, highlightthickness=0)
         scrollbar = tk.Scrollbar(scroll_container, orient='vertical', command=self.canvas.yview)
+        h_scrollbar = tk.Scrollbar(scroll_container, orient='horizontal', command=self.canvas.xview)
         
-        self.canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas.configure(yscrollcommand=scrollbar.set, xscrollcommand=h_scrollbar.set)
         scrollbar.pack(side='right', fill='y')
+        h_scrollbar.pack(side='bottom', fill='x')
         self.canvas.pack(side='left', fill='both', expand=True)
         
         self.content_frame = tk.Frame(self.canvas, bg=Theme.BG)
@@ -441,6 +445,17 @@ class CustomSettingsDialog(tk.Toplevel):
             padx=6, pady=3
         ).pack(anchor='w')
         
+        # 页码字体
+        pn_row = tk.Frame(special_frame, bg=Theme.BG)
+        pn_row.pack(anchor='w', pady=(2, 6))
+        tk.Label(pn_row, text="页码字体:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY).pack(side='left', padx=(6, 4))
+        self.page_number_font_var = tk.StringVar(value=self.settings.get('page_number_font', '宋体'))
+        page_number_fonts = ['宋体', '仿宋', '仿宋_GB2312', 'Times New Roman']
+        self._create_combobox(
+            pn_row, self.page_number_font_var, page_number_fonts, width=16,
+            initial_value=self.page_number_font_var.get()
+        ).pack(side='left')
+        
         # ============================================================
         #  高级设置（可折叠）
         # ============================================================
@@ -457,7 +472,7 @@ class CustomSettingsDialog(tk.Toplevel):
         
         # 恢复默认
         reset_btn = tk.Label(
-            btn_row, text="恢复默认", font=get_font(11),
+            btn_row, text="恢复默认公文格式", font=get_font(11),
             bg=Theme.BG, fg=Theme.TEXT_SECONDARY, cursor='hand2'
         )
         reset_btn.pack(side='left')
@@ -590,17 +605,21 @@ class CustomSettingsDialog(tk.Toplevel):
         self.canvas.configure(scrollregion=self.canvas.bbox('all'))
     
     def _on_canvas_configure(self, event):
-        self.canvas.itemconfig(self.canvas_window, width=self.content_frame.winfo_reqwidth())
+        # 保持内容宽度不小于画布宽度，允许水平滚动
+        content_w = self.content_frame.winfo_reqwidth()
+        self.canvas.itemconfig(self.canvas_window, width=max(event.width, content_w))
     
     def _bind_mousewheel(self):
         self.canvas.bind_all('<MouseWheel>', self._on_mousewheel)
         self.canvas.bind_all('<Button-4>', self._on_mousewheel)
         self.canvas.bind_all('<Button-5>', self._on_mousewheel)
+        self.canvas.bind_all('<Shift-MouseWheel>', self._on_shift_mousewheel)
     
     def _unbind_mousewheel(self):
         self.canvas.unbind_all('<MouseWheel>')
         self.canvas.unbind_all('<Button-4>')
         self.canvas.unbind_all('<Button-5>')
+        self.canvas.unbind_all('<Shift-MouseWheel>')
     
     def _on_mousewheel(self, event):
         if event.num == 4:
@@ -609,6 +628,10 @@ class CustomSettingsDialog(tk.Toplevel):
             self.canvas.yview_scroll(1, 'units')
         else:
             self.canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
+
+    def _on_shift_mousewheel(self, event):
+        if event.delta:
+            self.canvas.xview_scroll(int(-1 * (event.delta / 120)), 'units')
     
     def _create_section(self, parent, title, padx=0):
         tk.Label(
@@ -713,6 +736,7 @@ class CustomSettingsDialog(tk.Toplevel):
             # 特殊选项
             self.first_bold_var.set(s.get('first_line_bold', False))
             self.page_number_var.set(s.get('page_number', True))
+            self.page_number_font_var.set(s.get('page_number_font', '宋体'))
             
             # 高级设置
             for key, vars_dict in self._adv_vars.items():
@@ -828,7 +852,8 @@ class CustomSettingsDialog(tk.Toplevel):
                     'header_bold': self.table_header_bold_var.get()
                 },
                 'first_line_bold': self.first_bold_var.get(),
-                'page_number': self.page_number_var.get()
+                'page_number': self.page_number_var.get(),
+                'page_number_font': self.page_number_font_var.get()
             }
             
             # 应用高级设置覆盖（如果用户有修改）

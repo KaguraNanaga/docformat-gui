@@ -12,8 +12,8 @@
   <a href="#download">Download</a> ·
   <a href="#core-capabilities">Core Capabilities</a> ·
   <a href="#usage">Usage</a> ·
-  <a href="#faq">FAQ</a>
-  <a href="README.md">中文ChineseVersion</a>
+  <a href="#faq">FAQ</a> ·
+  <a href="README.md">中文</a>
 </p>
 
 <p align="center">
@@ -37,16 +37,20 @@ This is a minimalist tool designed to solve the chaos often found in Word docume
 
 ## Core Capabilities
 
-This tool is more than just a simple format painter. It deeply analyzes and fixes **8 major categories** of common formatting pain points:
+This tool is more than just a simple format painter. It deeply analyzes and fixes common formatting pain points:
 
-1. **點 Standardize Punctuation**: Automatically detects and fixes mixed usage of full-width/half-width symbols (brackets, quotes, commas, periods, etc.), converting them all to standard Chinese punctuation.
+1. **🔣 Standardize Punctuation**: Automatically detects and fixes mixed usage of full-width/half-width symbols (brackets, quotes, commas, periods, etc.), converting them all to standard Chinese punctuation.
 2. **📏 Calibrate Page Margins**: Forcibly unifies page margins to meet the standard requirements for official document layouts.
-3. **A Intelligent Font Adaptation**: Smartly recognizes the hierarchy between headings and body text, automatically applying the correct fonts (e.g., SimHei, FangSong) and font sizes.
+3. **🔤 Intelligent Font Adaptation**: Smartly recognizes the hierarchy between headings and body text, automatically applying the correct fonts (e.g., SimHei, FangSong) and font sizes.
 4. **📝 Auto-complete Indentation**: Scans the entire text and adds standard 2-character indentation to paragraphs that lack it.
-5. **Ξ Standardize Line Spacing**: Identifies inconsistent line spacing and adjusts it to the standard value (e.g., 28pt) with one click.
+5. **📐 Standardize Line Spacing**: Identifies inconsistent line spacing and adjusts it to the standard value (e.g., 28pt) with one click.
 6. **1️⃣ Fix Numbering Styles**: Cleans up chaotic numbering formats, unifying the style (e.g., standardizing mixed usage of "1、" and "1.").
 7. **🎨 Visual Background Adjustment**: Supports adjusting the page background color for a more comfortable editing and reading experience.
 8. **🧹 Clean Font Styles**: Deeply cleans non-standard font colors, weights, underlines, and italics to restore a clean layout.
+9. **📂 .DOC / .WPS Compatible**: Full support for `.doc` and `.wps` file input and output, no manual conversion needed — compatible with both WPS and Microsoft Office ecosystems.
+10. **📊 Table Auto-optimization**: Intelligently detects tables in the document and auto-adjusts column width, row height, and cell formatting for a clean, standardized layout.
+11. **⚙️ Custom Format Configuration**: Allows users to customize page margins, line spacing, fonts, font sizes, and other formatting parameters to suit different layout requirements.
+12. **📦 Ready Out of the Box**: Bundles pywin32 internally — no need to install Python separately. Download and run, truly portable and zero-configuration.
 
 ---
 
@@ -55,10 +59,10 @@ This tool is more than just a simple format painter. It deeply analyzes and fixe
 ### Windows Users
 
 1. **Click to Download**: [**Document_Format_GUI_v1.0.0.exe**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_windows.exe)
-2. Double-click to run after downloading. No installation required; it's a portable application.
+2. Double-click to run after downloading. No Python or additional installation required; it's a portable application.
 
 > **Note**:
-> * Only supports `.docx` files. Please save old `.doc` files as `.docx` before processing.
+> * Supports `.docx`, `.doc`, and `.wps` format documents.
 
 ### Linux Users (Kylin / UOS)
 * The Linux version is currently under testing. Stay tuned.
