@@ -38,16 +38,39 @@ jobs:
           name: windows-build
           path: dist/docformat_windows.exe
 
-  # 保留 Linux 构建的占位符（未来只需取消注释）
-  # build-linux:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-  #     ...（完整 Linux 构建步骤，见下文）
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller python-docx
+
+      - name: Build Linux executable
+        run: |
+          pyinstaller --onefile --name=docformat_linux --add-data "scripts:scripts" --hidden-import=docx --hidden-import=lxml docformat_gui.py
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: dist/docformat_linux
 
   release:
-    needs: build-windows  # 仅依赖 Windows 构建
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     
@@ -56,6 +79,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-build
+          path: dist/
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-build
           path: dist/
 
       - name: Get version from tag
@@ -70,6 +98,15 @@ jobs:
             ## Windows 版下载
             
             👉 [docformat_windows.exe](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/docformat_windows.exe)
+            
+            ## Linux 版下载
+            
+            👉 [docformat_linux](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/docformat_linux)
+            
+            **Linux 运行说明**：
+            1. `chmod +x docformat_linux`
+            2. `./docformat_linux`
+            3. 仅支持 `.docx` 文件
             
             ## 使用说明
             
@@ -87,45 +124,8 @@ jobs:
             
           files: |
             dist/docformat_windows.exe
+            dist/docformat_linux
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-# ===================================================================
-# FUTURE EXTENSION: Linux support (uncomment to enable)
-# ===================================================================
-# build-linux:
-#   runs-on: ubuntu-latest
-#   steps:
-#     - name: Checkout code
-#       uses: actions/checkout@v4
-#
-#     - name: Set up Python
-#       uses: actions/setup-python@v5
-#       with:
-#         python-version: '3.11'
-#
-#     - name: Install system dependencies
-#       run: |
-#         sudo apt-get update
-#         sudo apt-get install -y python3-tk
-#
-#     - name: Install Python dependencies
-#       run: |
-#         python -m pip install --upgrade pip
-#         pip install pyinstaller python-docx
-#
-#     - name: Build Linux executable
-#       run: |
-#         pyinstaller --onefile --name=docformat_linux --add-data "scripts:scripts" --hidden-import=docx --hidden-import=lxml docformat_gui.py
-#
-#     - name: Upload Linux artifact
-#       uses: actions/upload-artifact@v4
-#       with:
-#         name: linux-build
-#         path: dist/docformat_linux
-#
-# # Update this when enabling Linux:
-# # release:
-# #   needs: [build-windows, build-linux]
-# #   ...

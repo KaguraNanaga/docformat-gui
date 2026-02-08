@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Platform-Windows-blue" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue" alt="Platform">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Language-Python-yellow" alt="Language">
 </p>
@@ -65,7 +65,12 @@ This tool is more than just a simple format painter. It deeply analyzes and fixe
 > * Supports `.docx`, `.doc`, and `.wps` format documents.
 
 ### Linux Users (Kylin / UOS)
-* The Linux version is currently under testing. Stay tuned.
+1. **Click to Download**: [**Document_Format_GUI_Linux**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_linux)
+2. Grant execute permission: `chmod +x docformat_linux`
+3. Double-click to run or execute: `./docformat_linux`
+
+> **Note**:
+> * The Linux build supports `.docx` only. Convert `.doc/.wps` to `.docx` on Windows first.
 
 ---
 

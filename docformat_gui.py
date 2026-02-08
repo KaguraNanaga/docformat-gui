@@ -1729,15 +1729,23 @@ class DocFormatApp:
         CustomSettingsDialog(self.root, on_save=on_save)
     
     def browse_input(self):
-        filename = filedialog.askopenfilename(
-            title="选择Word文档",
-            filetypes=[
+        is_windows = (os.name == 'nt')
+        if is_windows:
+            filetypes = [
                 ("所有支持格式", "*.docx *.doc *.wps"),
                 ("Word 文档 (.docx)", "*.docx"),
                 ("Word 97-2003 (.doc)", "*.doc"),
                 ("WPS 文档 (.wps)", "*.wps"),
                 ("所有文件", "*.*"),
             ]
+        else:
+            filetypes = [
+                ("Word 文档 (.docx)", "*.docx"),
+                ("所有文件", "*.*"),
+            ]
+        filename = filedialog.askopenfilename(
+            title="选择Word文档",
+            filetypes=filetypes
         )
         if filename:
             self.input_file.set(filename)
@@ -1749,15 +1757,22 @@ class DocFormatApp:
             self.result_panel.reset()
     
     def browse_output(self):
-        filename = filedialog.asksaveasfilename(
-            title="保存为",
-            defaultextension=".docx",
-            filetypes=[
+        is_windows = (os.name == 'nt')
+        if is_windows:
+            filetypes = [
                 ("所有支持格式", "*.docx *.doc *.wps"),   # ← 默认选中，空格分隔
                 ("Word 文档 (.docx)", "*.docx"),
                 ("Word 97-2003 (.doc)", "*.doc"),
                 ("WPS 文档 (.wps)", "*.wps"),
             ]
+        else:
+            filetypes = [
+                ("Word 文档 (.docx)", "*.docx"),
+            ]
+        filename = filedialog.asksaveasfilename(
+            title="保存为",
+            defaultextension=".docx",
+            filetypes=filetypes
         )
         if filename:
             self.output_file.set(filename)
@@ -1774,6 +1789,17 @@ class DocFormatApp:
         if not os.path.exists(input_path):
             messagebox.showerror("错误", "文件不存在")
             return
+
+        # Linux: 仅支持 .docx，.doc/.wps 需在 Windows 上转换
+        if os.name != 'nt':
+            input_ext = Path(input_path).suffix.lower()
+            output_ext = Path(output_path).suffix.lower() if output_path else ''
+            if input_ext in ('.doc', '.wps') or output_ext in ('.doc', '.wps'):
+                messagebox.showerror(
+                    "不支持的格式",
+                    "Linux 版本仅支持 .docx 文件。.doc/.wps 请在 Windows 上转换，或先保存为 .docx 再处理。"
+                )
+                return
         
         if mode != 'analyze' and not output_path:
             messagebox.showerror("提示", "请指定输出文件")

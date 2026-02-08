@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Platform-Windows-blue" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue" alt="Platform">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Language-Python-yellow" alt="Language">
 </p>
@@ -71,7 +71,12 @@
 > * 支持 `.docx`、`.doc` 及 `.wps` 格式文档。
 
 ### 国产系统用户（麒麟 / 统信 UOS）
-* Linux 版本正在测试中，敬请期待。
+1. **点击下载**：[**Document_Format_GUI_Linux**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_linux)
+2. 下载后先赋予执行权限：`chmod +x docformat_linux`
+3. 双击运行或在终端执行：`./docformat_linux`
+
+> **注意**：
+> * Linux 版本仅支持 `.docx` 文件；`.doc/.wps` 需要在 Windows 上先转换为 `.docx`。
 
 ---
 
