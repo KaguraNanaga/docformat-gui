@@ -64,13 +64,13 @@
 
 ### Windows 用户
 
-1. **点击下载**：[**Document_Format_GUI_v1.1.2.exe**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_windows.exe)
+1. **点击下载**：[**Document_Format_GUI_v1.1.3.exe**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_windows.exe)
 2. 下载后双击即可运行，无需安装 Python，绿色纯净。
 
 > **注意**：
 > * 支持 `.docx`、`.doc` 及 `.wps` 格式文档。
 
-### 国产系统用户（麒麟 / 统信 UOS）
+### 国产系统用户（麒麟 / 统信 UOS）【注意：目前是测试版本，欢迎反馈bugs】
 1. **点击下载**：[**Document_Format_GUI_Linux**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_linux)
 2. 下载后先赋予执行权限：`chmod +x docformat_linux`
 3. 双击运行或在终端执行：`./docformat_linux`
