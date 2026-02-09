@@ -52,7 +52,7 @@ def load_custom_preset():
 PRESETS = {
     'official': {
         'name': '公文格式',
-        'page': {'top': 3.7, 'bottom': 3.5, 'left': 2.8, 'right': 2.6},
+        'page': {'top': 3.46, 'bottom': 3.26, 'left': 2.8, 'right': 2.6},
         # 主标题：二号方正小标宋简体，居中
         'title': {
             'font_cn': '方正小标宋简体',
@@ -107,7 +107,7 @@ PRESETS = {
             'align': 'left',
             'indent': 32,
         },
-        # 正文：三号仿宋GB2312，首行缩进2字符（32pt），行距28磅
+        # 正文：三号仿宋GB2312，首行缩进2字符（32pt），行距29.45磅
         'body': {
             'font_cn': '仿宋_GB2312',
             'font_en': 'Times New Roman',
@@ -115,7 +115,7 @@ PRESETS = {
             'bold': False,
             'align': 'justify',
             'indent': 32,  # 2字符 = 2×16pt
-            'line_spacing': 28,
+            'line_spacing': 29.45,
         },
         # 落款单位：三号仿宋，右对齐
         'signature': {
@@ -659,7 +659,7 @@ def set_font(run, font_cn, font_en, size, bold=False):
     rFonts.set(qn('w:cs'), font_en)
 
 
-def format_paragraph(para, fmt, para_type, line_spacing_pt=28, first_line_bold=False):
+def format_paragraph(para, fmt, para_type, line_spacing_pt=29.45, first_line_bold=False):
     """格式化段落
     
     fmt 支持的字段:
@@ -929,7 +929,7 @@ def format_document(input_path, output_path, preset_name='official'):
     tbl_font_en = table_fmt.get('font_en', body_fmt.get('font_en', 'Times New Roman'))
     tbl_size = table_fmt.get('size', body_fmt.get('size', 16))
     tbl_bold = table_fmt.get('bold', False)
-    tbl_line_spacing = table_fmt.get('line_spacing', body_fmt.get('line_spacing', 28))
+    tbl_line_spacing = table_fmt.get('line_spacing', body_fmt.get('line_spacing', 29.45))
     tbl_header_bold = table_fmt.get('header_bold', False)
     tbl_first_line_indent = table_fmt.get('first_line_indent', 0)
 

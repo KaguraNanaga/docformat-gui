@@ -90,61 +90,61 @@ FONT_SIZES = [
 
 DEFAULT_CUSTOM_SETTINGS = {
     'name': '自定义格式',
-    'page': {'top': 3.7, 'bottom': 3.5, 'left': 2.8, 'right': 2.6},
+    'page': {'top': 3.46, 'bottom': 3.26, 'left': 2.8, 'right': 2.6},
     'title': {
         'font_cn': '方正小标宋简体', 'font_en': 'Times New Roman',
         'size': 22, 'bold': False, 'align': 'center', 'indent': 0,
-        'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'recipient': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
         'size': 16, 'bold': False, 'align': 'left', 'indent': 0,
-        'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'heading1': {
         'font_cn': '黑体', 'font_en': 'Times New Roman',
         'size': 16, 'bold': False, 'align': 'left', 'indent': 32,
-        'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'heading2': {
         'font_cn': '楷体_GB2312', 'font_en': 'Times New Roman',
         'size': 16, 'bold': False, 'align': 'left', 'indent': 32,
-        'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'heading3': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
         'size': 16, 'bold': False, 'align': 'left', 'indent': 32,
-        'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'heading4': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
         'size': 16, 'bold': False, 'align': 'left', 'indent': 32,
-        'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'body': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
         'size': 16, 'bold': False, 'align': 'justify',
-        'indent': 32, 'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'indent': 32, 'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'signature': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
         'size': 16, 'bold': False, 'align': 'right', 'indent': 0,
-        'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'date': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
         'size': 16, 'bold': False, 'align': 'right', 'indent': 0,
-        'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'attachment': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
-        'size': 16, 'bold': False, 'align': 'justify', 'indent': 32,
-        'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'size': 16, 'bold': False, 'align': 'left', 'indent': 0,
+        'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'closing': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
         'size': 16, 'bold': False, 'align': 'left', 'indent': 32,
-        'line_spacing': 28, 'space_before': 0, 'space_after': 0
+        'line_spacing': 29.45, 'space_before': 0, 'space_after': 0
     },
     'table': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
@@ -325,7 +325,7 @@ class CustomSettingsDialog(tk.Toplevel):
                               initial_value=self._size_display(self.settings.get('title', {}).get('size', 22))).pack(side='left', padx=3)
         
         tk.Label(row_t, text="行距:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=5, anchor='e').pack(side='left', padx=(10, 0))
-        self.title_line_spacing_var = tk.StringVar(value=str(self.settings.get('title', {}).get('line_spacing', 28) or ''))
+        self.title_line_spacing_var = tk.StringVar(value=str(self.settings.get('title', {}).get('line_spacing', 29.45) or ''))
         tk.Entry(row_t, textvariable=self.title_line_spacing_var, font=get_font(11), width=5, relief='solid', bd=1).pack(side='left', padx=3)
         tk.Label(row_t, text="磅", font=get_font(10), bg=Theme.BG, fg=Theme.TEXT_MUTED).pack(side='left')
         
@@ -374,7 +374,7 @@ class CustomSettingsDialog(tk.Toplevel):
                               initial_value=self._size_display(self.settings.get('body', {}).get('size', 16))).pack(side='left', padx=3)
         
         tk.Label(row_b1, text="行距:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=5, anchor='e').pack(side='left', padx=(10, 0))
-        self.line_spacing_var = tk.StringVar(value=str(self.settings.get('body', {}).get('line_spacing', 28) or ''))
+        self.line_spacing_var = tk.StringVar(value=str(self.settings.get('body', {}).get('line_spacing', 29.45) or ''))
         tk.Entry(row_b1, textvariable=self.line_spacing_var, font=get_font(11), width=5, relief='solid', bd=1).pack(side='left', padx=3)
         tk.Label(row_b1, text="磅", font=get_font(10), bg=Theme.BG, fg=Theme.TEXT_MUTED).pack(side='left')
         
@@ -685,7 +685,7 @@ class CustomSettingsDialog(tk.Toplevel):
             return float(match.group(1))
         return 16
     
-    def _get_line_spacing(self, var, fallback=28):
+    def _get_line_spacing(self, var, fallback=29.45):
         """从行距输入框获取值，空值返回 fallback"""
         val = var.get().strip()
         if not val:
@@ -708,7 +708,7 @@ class CustomSettingsDialog(tk.Toplevel):
             # 标题
             self.title_font_var.set(s.get('title', {}).get('font_cn', '方正小标宋简体'))
             self._set_size_var(self.title_size_var, s.get('title', {}).get('size', 22))
-            self.title_line_spacing_var.set(str(s.get('title', {}).get('line_spacing', 28) or ''))
+            self.title_line_spacing_var.set(str(s.get('title', {}).get('line_spacing', 29.45) or ''))
             
             # 一/二级标题
             self.h1_font_var.set(s.get('heading1', {}).get('font_cn', '黑体'))
@@ -719,7 +719,7 @@ class CustomSettingsDialog(tk.Toplevel):
             # 正文
             self.body_font_var.set(s.get('body', {}).get('font_cn', '仿宋_GB2312'))
             self._set_size_var(self.body_size_var, s.get('body', {}).get('size', 16))
-            self.line_spacing_var.set(str(s.get('body', {}).get('line_spacing', 28) or ''))
+            self.line_spacing_var.set(str(s.get('body', {}).get('line_spacing', 29.45) or ''))
             
             body_size = s.get('body', {}).get('size', 16) or 16
             indent = s.get('body', {}).get('indent', 32)
@@ -775,8 +775,8 @@ class CustomSettingsDialog(tk.Toplevel):
             h1_size = self._get_size_from_var(self.h1_size_var)
             h2_size = self._get_size_from_var(self.h2_size_var)
             body_size = self._get_size_from_var(self.body_size_var)
-            body_ls = self._get_line_spacing(self.line_spacing_var, 28)
-            title_ls = self._get_line_spacing(self.title_line_spacing_var, 28)
+            body_ls = self._get_line_spacing(self.line_spacing_var, 29.45)
+            title_ls = self._get_line_spacing(self.title_line_spacing_var, 29.45)
             
             # 首行缩进
             indent_text = self.indent_var.get()

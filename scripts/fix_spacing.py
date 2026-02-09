@@ -11,8 +11,8 @@ def fix_line_spacing(input_path, output_path):
     print(f"Reading: {input_path}")
     doc = Document(input_path)
 
-    # 公文标准行距：28pt固定值（约355600 twips）
-    target_spacing = 355600  # 28pt in twips
+    # 公文标准行距：29.45pt固定值（约 374015 twips）
+    target_spacing = 374015  # 29.45pt in twips
 
     changes = 0
 
@@ -28,9 +28,9 @@ def fix_line_spacing(input_path, output_path):
         if len(text) < 20 or pf.alignment is not None:
             continue
 
-        # 修改行距为固定值28pt
+        # 修改行距为固定值29.45pt
         if pf.line_spacing != target_spacing:
-            pf.line_spacing = Pt(28)  # 设置为28pt固定值
+            pf.line_spacing = Pt(29.45)  # 设置为29.45pt固定值
             changes += 1
 
     print(f"Fixed line spacing for {changes} paragraphs")

@@ -7,7 +7,7 @@ from docx.shared import Pt
 
 
 def fix_line_spacing(input_path, output_path):
-    """统一所有段落行距为28pt固定值"""
+    """统一所有段落行距为29.45pt固定值"""
     print(f"Reading: {input_path}")
     doc = Document(input_path)
 
@@ -19,8 +19,8 @@ def fix_line_spacing(input_path, output_path):
 
         pf = para.paragraph_format
 
-        # 统一设置为28pt固定值
-        pf.line_spacing = Pt(28)
+        # 统一设置为29.45pt固定值
+        pf.line_spacing = Pt(29.45)
 
     print("Fixed line spacing for all text paragraphs")
     doc.save(output_path)

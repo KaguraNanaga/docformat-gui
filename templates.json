@@ -3,8 +3,8 @@
     "official": {
       "name": "公文格式",
       "page": {
-        "top": 3.7,
-        "bottom": 3.5,
+        "top": 3.46,
+        "bottom": 3.26,
         "left": 2.8,
         "right": 2.6
       },
@@ -63,7 +63,7 @@
         "bold": false,
         "align": "justify",
         "indent": 32,
-        "line_spacing": 28
+        "line_spacing": 29.45
       },
       "signature": {
         "font_cn": "仿宋_GB2312",
@@ -86,8 +86,8 @@
         "font_en": "Times New Roman",
         "size": 16,
         "bold": false,
-        "align": "justify",
-        "indent": 32
+        "align": "left",
+        "indent": 0
       },
       "closing": {
         "font_cn": "仿宋_GB2312",
@@ -359,7 +359,7 @@
         "bold": false,
         "align": "justify",
         "indent": 44,
-        "line_spacing": 28
+        "line_spacing": 29.45
       },
       "signature": {
         "font_cn": "方正仿宋_GBK",
