@@ -29,3 +29,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Docker data directories
+data/
+/测试文档

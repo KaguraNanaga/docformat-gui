@@ -1,0 +1,57 @@
+services:
+  libreoffice:
+    image: linuxserver/libreoffice:25.8.1
+    container_name: libreoffice
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data/config:/config
+      - ./data/temp:/temp
+      - ./data/output:/output
+    ports:
+      - "3000:3000"
+      - "8100:8100"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - doc-converter-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: doc-converter-api
+    volumes:
+      - ./backend:/app
+      - ./data/temp:/temp
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8000:8000"
+    depends_on:
+      libreoffice:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - LIBREOFFICE_HOST=libreoffice
+      - LIBREOFFICE_CONTAINER_NAME=libreoffice
+    restart: unless-stopped
+    networks:
+      - doc-converter-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/convert/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  doc-converter-network:
+    driver: bridge
