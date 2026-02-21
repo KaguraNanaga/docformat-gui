@@ -113,7 +113,7 @@ DEFAULT_CUSTOM_SETTINGS = {
     },
     'heading3': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
-        'size': 16, 'bold': False, 'align': 'left', 'indent': 32,
+        'size': 16, 'bold': True, 'align': 'left', 'indent': 32,
         'line_spacing': 28, 'space_before': 0, 'space_after': 0
     },
     'heading4': {
@@ -780,7 +780,7 @@ class CustomSettingsDialog(tk.Toplevel):
             
             # 首行缩进
             indent_text = self.indent_var.get()
-            indent_chars = int(indent_text.replace('字符', ''))
+            indent_chars = int(float(indent_text.replace('字符', '')))
             indent_pt = indent_chars * body_size
             
             body_font = self.body_font_var.get()
