@@ -22,6 +22,7 @@
 """
 
 import sys
+import json
 import re
 from pathlib import Path
 from docx import Document
@@ -42,7 +43,6 @@ def load_custom_preset():
     custom_config_file = Path(__file__).parent.parent / "custom_settings.json"
     if custom_config_file.exists():
         try:
-            import json
             with open(custom_config_file, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception:
@@ -94,7 +94,7 @@ PRESETS = {
             'font_cn': '仿宋_GB2312',
             'font_en': 'Times New Roman',
             'size': 16,
-            'bold': False,
+            'bold': True,
             'align': 'left',
             'indent': 32,
         },
@@ -415,8 +415,7 @@ def _is_numeric_text(text):
     text = text.replace(',', '').replace('％', '%').strip()
     if not text:
         return False
-    import re
-    return re.match(r'^[-+]?\\d+(?:\\.\\d+)?%?$', text) is not None
+    return re.match(r'^[-+]?\d+(?:\.\d+)?%?$', text) is not None
 
 
 def _is_short_text(text, max_len=4):
@@ -430,8 +429,7 @@ def _is_table_title(text):
         return False
     if len(text) > 30:
         return False
-    import re
-    return re.match(r'^表\\s*(?:\\d+|[一二三四五六七八九十]+)(?:[\\-\\—\\._、]\\d+)?', text) is not None
+    return re.match(r'^表\s*(?:\d+|[一二三四五六七八九十]+)(?:[-—._、]\d+)?', text) is not None
 
 
 def _is_table_unit(text):
@@ -440,8 +438,7 @@ def _is_table_unit(text):
         return False
     if len(text) > 20:
         return False
-    import re
-    return re.match(r'^单位\\s*[:：]', text) is not None
+    return re.match(r'^单位\s*[:：]', text) is not None
 
 
 def _set_cell_borders(cell, size_pt=0.5, color="000000"):
@@ -469,7 +466,7 @@ def _set_cell_borders(cell, size_pt=0.5, color="000000"):
         borders.append(elem)
 
 
-def detect_para_type(text, index, total, alignment, all_texts):
+def detect_para_type(text, index, total, alignment, all_texts, all_texts_index=None):
     """
     检测段落类型
     返回: 'title', 'recipient', 'heading1', 'heading2', 'heading3', 'heading4', 
@@ -507,9 +504,17 @@ def detect_para_type(text, index, total, alignment, all_texts):
         return 'heading4'
     
     # ===== 主送机关：XXX： 或 XXX: =====
-    # 通常在文档开头几段，以冒号结尾，且较短
-    if re.match(r'^[\u4e00-\u9fff]+[：:]$', text) and len(text) < 20:
-        return 'recipient'
+    # 特征：以冒号结尾的名词性短语，不含动词/虚词
+    # 如"各处室、直属单位：" "各市（州）教育局："
+    if re.match(r'^[\u4e00-\u9fff\d、，,（）()\s]+[：:]$', text) and len(text) < 30:
+        # 排除含动词/虚词的正文句子，如"现将有关事项通知如下："
+        body_indicators = (
+            r'(现将|为了|根据|按照|经研究|为贯彻|为落实|为进一步|为深入|'
+            r'如下|以下|特此|兹将|报告如下|说明如下|通知如下|汇报如下|'
+            r'的意见|的通知|的报告|的决定|的请示|的函)'
+        )
+        if not re.search(body_indicators, text):
+            return 'recipient'
     
     # ===== 附件行 =====
     if re.match(r'^附件[：:]\s*', text):
@@ -552,7 +557,10 @@ def detect_para_type(text, index, total, alignment, all_texts):
         if re.search(r'(公司|局|委|部|厅|院|所|中心|办公室|集团|银行|学校|大学|医院)$', text):
             return 'signature'
         # 或者检查下文是否有日期
-        remaining_texts = all_texts[all_texts.index(text)+1:] if text in all_texts else []
+        if all_texts_index is not None:
+            remaining_texts = all_texts[all_texts_index + 1:]
+        else:
+            remaining_texts = []
         for next_text in remaining_texts[:3]:
             for pattern in date_patterns:
                 if re.match(pattern, next_text.strip()):
@@ -729,8 +737,7 @@ def format_paragraph(para, fmt, para_type, line_spacing_pt=28, first_line_bold=F
     else:
         # 正文里的“一是/二是...”加粗前缀
         if para_type == 'body':
-            import re as _re
-            m = _re.match(r'^([一二三四五六七八九十]{1,3}是)([：:、]?)', para.text)
+            m = re.match(r'^([一二三四五六七八九十]{1,3}是)([：:、]?)', para.text)
             if m:
                 lead = m.group(1) + (m.group(2) or '')
                 rest = para.text[len(lead):]
@@ -855,6 +862,15 @@ def format_document(input_path, output_path, preset_name='official'):
     
     # 收集所有非空段落文本，用于上下文判断
     all_texts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+
+    # 段落索引到 all_texts 索引的映射
+    all_texts_idx_map = {}
+    at_idx = 0
+    for i, para in enumerate(doc.paragraphs):
+        text = para.text.strip()
+        if text:
+            all_texts_idx_map[i] = at_idx
+            at_idx += 1
     
     # 1. 移除背景
     print('1. Removing background...')
@@ -885,7 +901,8 @@ def format_document(input_path, output_path, preset_name='official'):
         para_type = detect_para_type(
             text, i, total_paras, 
             para.paragraph_format.alignment,
-            all_texts
+            all_texts,
+            all_texts_index=all_texts_idx_map.get(i)
         )
         
         # 选择对应的格式
@@ -1096,3 +1113,4 @@ if __name__ == '__main__':
             preset = sys.argv[idx + 1]
     
     format_document(input_file, output_file, preset)
+
