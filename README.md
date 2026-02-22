@@ -64,7 +64,7 @@
 
 ### Windows 用户
 
-1. **点击下载**：[**Document_Format_GUI_v1.1.3.exe**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_windows.exe)
+1. **点击下载**：[**Document_Format_GUI.exe**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_windows.exe)
 2. 下载后双击即可运行，无需安装 Python，绿色纯净。
 
 > **注意**：
