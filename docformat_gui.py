@@ -1707,7 +1707,7 @@ class DocFormatApp:
         
         tk.Label(
             footer,
-            text="© 2025 KaguraNanaga · MIT License",
+            text="© 2026 今日之明日 · MIT License",
             font=get_font(9),
             bg=Theme.BG,
             fg=Theme.TEXT_MUTED
