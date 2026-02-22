@@ -24,6 +24,7 @@
 import sys
 import json
 import re
+import logging
 from pathlib import Path
 from docx import Document
 from docx.shared import Pt, Cm, Twips, RGBColor
@@ -34,13 +35,18 @@ from docx.text.paragraph import Paragraph
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
+logger = logging.getLogger('docformat.formatter')
+
 # 字号对照：二号=22pt，三号=16pt，小四=12pt
 # 2字符缩进 = 2 × 16pt = 32pt（三号字）
 
 # 自定义配置文件路径
 def load_custom_preset():
     """加载自定义预设"""
-    custom_config_file = Path(__file__).parent.parent / "custom_settings.json"
+    if getattr(sys, 'frozen', False):
+        custom_config_file = Path(sys.executable).parent / "custom_settings.json"
+    else:
+        custom_config_file = Path(__file__).parent.parent / "custom_settings.json"
     if custom_config_file.exists():
         try:
             with open(custom_config_file, 'r', encoding='utf-8') as f:
@@ -567,26 +573,41 @@ def detect_para_type(text, index, total, alignment, all_texts, all_texts_index=N
                     return 'signature'
     
     # ===== 主标题 =====
-    # 判断条件：在前5段，且满足以下条件之一
+    # 公文结构：[密级/文号] → [标题] → [主送机关] → [正文/各级标题]
+    # 一旦出现主送机关（以：结尾）或一级标题（一、），后续段落不再可能是主标题
     if index < 5:
-        # 1. 明确的公文标题模式
-        title_patterns = [
-            r'^关于.+的(通知|报告|请示|函|意见|决定|公告|通报|批复|说明|方案|总结|汇报|复函|答复|建议)$',
-            r'^.{2,30}(通知|报告|请示|函|意见|决定|公告|通报|批复|工作方案|工作总结|实施方案|管理办法|暂行规定)$',
-        ]
-        for pattern in title_patterns:
-            if re.match(pattern, text):
-                return 'title'
+        _check_idx = all_texts_index if all_texts_index is not None else 0
+        _title_region_ended = False
+        for pt in all_texts[:_check_idx]:
+            pt_s = pt.strip()
+            # 主送机关：以：或:结尾的短句
+            if re.search(r'[：:]\s*$', pt_s) and len(pt_s) < 50:
+                _title_region_ended = True
+                break
+            # 一级标题序号
+            if re.match(r'^[一二三四五六七八九十]+、', pt_s):
+                _title_region_ended = True
+                break
         
-        # 2. 较长的标题（20-80字符），不以标点结尾
-        if 15 < len(text) < 80 and not re.search(r'[。！？，、；：]$', text):
-            # 排除以序号开头的
-            if not re.match(r'^[一二三四五六七八九十\d（(]', text):
+        if not _title_region_ended:
+            # 1. 明确的公文标题模式
+            title_patterns = [
+                r'^关于.+的(通知|报告|请示|函|意见|决定|公告|通报|批复|说明|方案|总结|汇报|复函|答复|建议)$',
+                r'^.{2,30}(通知|报告|请示|函|意见|决定|公告|通报|批复|工作方案|工作总结|实施方案|管理办法|暂行规定)$',
+            ]
+            for pattern in title_patterns:
+                if re.match(pattern, text):
+                    return 'title'
+            
+            # 2. 较长的标题（20-80字符），不以标点结尾
+            if 15 < len(text) < 80 and not re.search(r'[。！？，、；：]$', text):
+                # 排除以序号开头的
+                if not re.match(r'^[一二三四五六七八九十\d（(]', text):
+                    return 'title'
+            
+            # 3. 居中的短文本（原本就是居中的）
+            if alignment == WD_ALIGN_PARAGRAPH.CENTER and len(text) < 60:
                 return 'title'
-        
-        # 3. 居中的短文本（原本就是居中的）
-        if alignment == WD_ALIGN_PARAGRAPH.CENTER and len(text) < 60:
-            return 'title'
     
     # ===== 其他都是正文 =====
     return 'body'
@@ -829,25 +850,29 @@ def add_page_number(doc, font_name="宋体"):
         _build_footer_line(even_footer, WD_ALIGN_PARAGRAPH.LEFT, pad_fullwidth=False)
 
 
-def format_document(input_path, output_path, preset_name='official'):
-    """格式化文档"""
+def format_document(input_path, output_path, preset_name='official', progress_callback=None):
+    """格式化文档
+    
+    Args:
+        progress_callback: 可选回调函数，签名为 callback(current, total, stage_text)
+    """
     # 处理自定义预设
     if preset_name == 'custom':
         preset = load_custom_preset()
         if preset is None:
-            print('Custom preset not found, using official preset')
+            logger.warning('Custom preset not found, using official preset')
             preset = PRESETS['official']
         else:
-            print(f'Preset: {preset.get("name", "自定义格式")}')
+            logger.info(f'Preset: {preset.get("name", "自定义格式")}')
     elif preset_name not in PRESETS:
-        print(f'Unknown preset: {preset_name}')
-        print(f'Available: {", ".join(PRESETS.keys())}')
+        logger.error(f'Unknown preset: {preset_name}')
+        logger.error(f'Available: {", ".join(PRESETS.keys())}')
         sys.exit(1)
     else:
         preset = PRESETS[preset_name]
-        print(f'Preset: {preset["name"]}')
+        logger.info(f'Preset: {preset["name"]}')
     
-    print(f'Input: {input_path}')
+    logger.info(f'Input: {input_path}')
     
     # 获取首句加粗选项
     first_line_bold = preset.get('first_line_bold', False)
@@ -872,12 +897,19 @@ def format_document(input_path, output_path, preset_name='official'):
             all_texts_idx_map[i] = at_idx
             at_idx += 1
     
+    # 进度回调辅助函数
+    def _progress(current, total, stage):
+        if progress_callback:
+            progress_callback(current, total, stage)
+    
     # 1. 移除背景
-    print('1. Removing background...')
+    logger.info('1. Removing background...')
+    _progress(0, 100, '移除背景...')
     remove_background(doc)
     
     # 2. 设置页面边距
-    print('2. Setting page margins...')
+    logger.info('2. Setting page margins...')
+    _progress(5, 100, '设置页面边距...')
     page = preset['page']
     for section in doc.sections:
         section.top_margin = Cm(page['top'])
@@ -886,7 +918,8 @@ def format_document(input_path, output_path, preset_name='official'):
         section.right_margin = Cm(page['right'])
     
     # 3. 格式化段落
-    print('3. Formatting paragraphs...')
+    logger.info('3. Formatting paragraphs...')
+    _progress(10, 100, '格式化段落...')
     stats = {
         'title': 0, 'recipient': 0, 'heading1': 0, 'heading2': 0, 
         'heading3': 0, 'heading4': 0, 'body': 0, 'signature': 0, 
@@ -914,10 +947,16 @@ def format_document(input_path, output_path, preset_name='official'):
         
         # 打印处理信息
         preview = text[:35] + '...' if len(text) > 35 else text
-        print(f'   [{para_type:10}] {preview}')
+        logger.info(f'   [{para_type:10}] {preview}')
+        
+        # 进度：10% ~ 80%
+        if total_paras > 0:
+            pct = 10 + int(70 * (i + 1) / total_paras)
+            _progress(pct, 100, f'格式化段落 ({i + 1}/{total_paras})')
     
     # 4. 处理表格
-    print('4. Formatting tables...')
+    logger.info('4. Formatting tables...')
+    _progress(82, 100, '格式化表格...')
     body_fmt = preset.get('body', {})
     # 表格配置：优先使用 preset 中的 table 节点，否则用 body 格式
     table_fmt = preset.get('table', {})
@@ -1080,25 +1119,30 @@ def format_document(input_path, output_path, preset_name='official'):
                     _insert_paragraph_after_table(table, text="")
     
     # 5. 添加页码
+    _progress(78, 100, '添加页码...')
     if preset.get('page_number', True):
-        print('5. Adding page numbers...')
+        logger.info('5. Adding page numbers...')
         add_page_number(doc, font_name=preset.get('page_number_font', '宋体'))
     else:
-        print('5. Skipping page numbers...')
+        logger.info('5. Skipping page numbers...')
     
     # 保存
+    _progress(82, 100, '保存文件...')
     doc.save(output_path)
+    _progress(85, 100, '格式化完成')
     
-    print()
-    print('=' * 50)
-    print('Statistics:')
+    logger.info('=' * 50)
+    logger.info('Statistics:')
     for k, v in stats.items():
         if v > 0:
-            print(f'  {k}: {v}')
-    print(f'Output: {output_path}')
+            logger.info(f'  {k}: {v}')
+    logger.info(f'Output: {output_path}')
 
 
 if __name__ == '__main__':
+    # CLI模式：日志输出到终端
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    
     if len(sys.argv) < 3:
         print('Usage: python formatter.py input.docx output.docx [--preset official|academic|legal]')
         sys.exit(1)

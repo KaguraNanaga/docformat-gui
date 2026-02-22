@@ -69,7 +69,12 @@ def get_font(size=12, weight='normal'):
 # ===== 配置管理 =====
 import json
 
-CONFIG_FILE = Path(__file__).parent / "custom_settings.json"
+if getattr(sys, 'frozen', False):
+    # PyInstaller 打包后，配置文件放在 exe 旁边（持久化）
+    CONFIG_FILE = Path(sys.executable).parent / "custom_settings.json"
+else:
+    # 开发环境，放在脚本旁边
+    CONFIG_FILE = Path(__file__).parent / "custom_settings.json"
 
 # 常用字体列表
 COMMON_FONTS_CN = [
@@ -583,6 +588,16 @@ class CustomSettingsDialog(tk.Toplevel):
         
         # 存储变量引用
         self._adv_vars[key] = {'font': font_var, 'font_en': font_en_var, 'size': size_var, 'line_spacing': ls_var}
+        
+        # 记录初始值，用于判断用户是否修改过高级设置
+        if not hasattr(self, '_adv_initial_values'):
+            self._adv_initial_values = {}
+        self._adv_initial_values[key] = {
+            'font': font_var.get(),
+            'font_en': font_en_var.get(),
+            'size': size_var.get(),
+            'line_spacing': ls_var.get(),
+        }
     
     def _toggle_advanced(self):
         """切换高级设置的折叠/展开"""
@@ -856,22 +871,25 @@ class CustomSettingsDialog(tk.Toplevel):
                 'page_number_font': self.page_number_font_var.get()
             }
             
-            # 应用高级设置覆盖（如果用户有修改）
+            # 应用高级设置覆盖（仅在用户真正修改过时）
+            initial = getattr(self, '_adv_initial_values', {})
             for key, vars_dict in self._adv_vars.items():
                 if key in self.settings and isinstance(self.settings[key], dict):
+                    key_initial = initial.get(key, {})
+                    
                     adv_font = vars_dict['font'].get()
                     adv_font_en = vars_dict['font_en'].get()
                     adv_size = self._get_size_from_var(vars_dict['size'])
                     adv_ls_str = vars_dict['line_spacing'].get().strip()
                     
-                    # 只在高级值与快速设置不同的时候覆盖
-                    if adv_font:
+                    # 只在值与初始值不同时才覆盖（说明用户主动修改了）
+                    if adv_font and adv_font != key_initial.get('font', ''):
                         self.settings[key]['font_cn'] = adv_font
-                    if adv_font_en:
+                    if adv_font_en and adv_font_en != key_initial.get('font_en', ''):
                         self.settings[key]['font_en'] = adv_font_en
-                    if adv_size:
+                    if adv_size and vars_dict['size'].get() != key_initial.get('size', ''):
                         self.settings[key]['size'] = adv_size
-                    if adv_ls_str:
+                    if adv_ls_str and adv_ls_str != key_initial.get('line_spacing', '').strip():
                         try:
                             self.settings[key]['line_spacing'] = int(float(adv_ls_str))
                         except ValueError:
@@ -1320,8 +1338,14 @@ class CollapsibleLog(tk.Frame):
             self.toggle_btn.configure(text="＋  展开运行日志")
     
     def log(self, message, tag='info'):
-        self.log_text.insert(tk.END, message + "\n", tag)
-        self.log_text.see(tk.END)
+        """线程安全的日志输出"""
+        import threading
+        if threading.current_thread() is threading.main_thread():
+            self.log_text.insert(tk.END, message + "\n", tag)
+            self.log_text.see(tk.END)
+        else:
+            # 非主线程，调度到主线程执行
+            self.after(0, lambda: self.log(message, tag))
     
     def clear(self):
         self.log_text.delete(1.0, tk.END)
@@ -1638,6 +1662,37 @@ class DocFormatApp:
             widget.bind('<Leave>', lambda e: self._btn_hover(False))
         self.run_label.configure(cursor='hand2')
         
+        # ===== 5.5 进度条 =====
+        self.progress_frame = tk.Frame(content, bg=Theme.BG)
+        # 默认不 pack，处理时才显示
+        
+        self.progress_stage = tk.Label(
+            self.progress_frame,
+            text="",
+            font=get_font(10),
+            bg=Theme.BG,
+            fg=Theme.TEXT_SECONDARY,
+            anchor='w'
+        )
+        self.progress_stage.pack(fill='x', pady=(0, 4))
+        
+        progress_bar_bg = tk.Frame(self.progress_frame, bg=Theme.BORDER, height=8)
+        progress_bar_bg.pack(fill='x')
+        progress_bar_bg.pack_propagate(False)
+        
+        self.progress_bar_fill = tk.Frame(progress_bar_bg, bg=Theme.PRIMARY, height=8, width=0)
+        self.progress_bar_fill.place(x=0, y=0, relheight=1.0, relwidth=0.0)
+        
+        self.progress_pct = tk.Label(
+            self.progress_frame,
+            text="",
+            font=get_font(9),
+            bg=Theme.BG,
+            fg=Theme.TEXT_MUTED,
+            anchor='e'
+        )
+        self.progress_pct.pack(fill='x', pady=(2, 0))
+        
         # ===== 6. 结果反馈区 =====
         self.result_panel = ResultPanel(content)
         self.result_panel.pack(fill='x', pady=(0, Theme.SPACE_LG))
@@ -1646,9 +1701,77 @@ class DocFormatApp:
         self.log_panel = CollapsibleLog(content)
         self.log_panel.pack(fill='x', pady=(Theme.SPACE_MD, 0))
         
+        # ===== 8. 底部版权信息 =====
+        footer = tk.Frame(content, bg=Theme.BG)
+        footer.pack(fill='x', pady=(Theme.SPACE_LG, Theme.SPACE_SM))
+        
+        tk.Label(
+            footer,
+            text="© 2025 KaguraNanaga · MIT License",
+            font=get_font(9),
+            bg=Theme.BG,
+            fg=Theme.TEXT_MUTED
+        ).pack(side='left')
+        
+        about_label = tk.Label(
+            footer,
+            text="关于",
+            font=get_font(9),
+            bg=Theme.BG,
+            fg=Theme.TEXT_MUTED,
+            cursor='hand2'
+        )
+        about_label.pack(side='right')
+        about_label.bind('<Button-1>', lambda e: self._show_about())
+        about_label.bind('<Enter>', lambda e: about_label.configure(fg=Theme.PRIMARY))
+        about_label.bind('<Leave>', lambda e: about_label.configure(fg=Theme.TEXT_MUTED))
+        
         # 初始化
         self._on_mode_change()
         self.log_panel.log("工具已就绪，请选择文件", 'info')
+    
+    def _show_about(self):
+        """显示关于对话框"""
+        about_text = (
+            "公文格式处理工具  v1.1.3\n\n"
+            "一键将 Word 文档排版为标准公文格式\n\n"
+            "开发者：KaguraNanaga\n"
+            "许可证：MIT License\n"
+            "项目地址：github.com/KaguraNanaga/docformat-gui\n\n"
+            "─────────────────────\n\n"
+            "🔒 数据安全声明\n\n"
+            "所有文档处理均在本地完成。\n"
+            "本工具不联网、不上传、不收集任何数据。\n\n"
+            "─────────────────────\n\n"
+            "⚠ 免责声明\n\n"
+            "处理结果仅供参考，建议人工复核。\n"
+            "本软件按「原样」提供，不附带任何担保。\n"
+            "详见项目目录下 DISCLAIMER.md。"
+        )
+        messagebox.showinfo("关于", about_text)
+    
+    def _show_progress(self):
+        """显示进度条"""
+        self.progress_frame.pack(fill='x', pady=(Theme.SPACE_SM, Theme.SPACE_SM),
+                                  before=self.result_panel)
+        self._update_progress(0, 100, '准备中...')
+    
+    def _update_progress(self, current, total, stage_text):
+        """更新进度条（线程安全）"""
+        import threading
+        if threading.current_thread() is not threading.main_thread():
+            self.root.after(0, lambda: self._update_progress(current, total, stage_text))
+            return
+        
+        pct = int(current * 100 / total) if total > 0 else 0
+        pct = min(pct, 100)
+        self.progress_bar_fill.place(x=0, y=0, relheight=1.0, relwidth=pct / 100)
+        self.progress_stage.configure(text=stage_text)
+        self.progress_pct.configure(text=f"{pct}%")
+    
+    def _hide_progress(self):
+        """隐藏进度条"""
+        self.progress_frame.pack_forget()
     
     def _on_frame_configure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox('all'))
@@ -1807,6 +1930,7 @@ class DocFormatApp:
         
         self.run_btn.configure(bg=Theme.TEXT_MUTED)
         self.run_label.configure(bg=Theme.TEXT_MUTED, text="处理中...")
+        self._show_progress()
         
         thread = threading.Thread(
             target=self._do_operation,
@@ -1825,6 +1949,7 @@ class DocFormatApp:
             
             ext = Path(input_path).suffix.lower()
             if ext in ('.doc', '.wps'):
+                self._update_progress(0, 100, f'转换 {ext} 为 .docx...')
                 self.log_panel.log(f"检测到 {ext} 格式，正在转换...", 'info')
                 from scripts.converter import convert_to_docx
                 try:
@@ -1849,6 +1974,7 @@ class DocFormatApp:
                 output_path_docx = output_path
             
             if mode == 'analyze':
+                self._update_progress(10, 100, '正在诊断...')
                 doc = Document(input_path)
                 results = {
                     'punctuation': analyze_punctuation(doc),
@@ -1856,11 +1982,14 @@ class DocFormatApp:
                     'paragraph': analyze_paragraph_format(doc),
                     'font': analyze_font(doc)
                 }
+                self._update_progress(100, 100, '诊断完成')
                 self.root.after(0, lambda: self.result_panel.show_diagnosis(results))
                 self.log_panel.log("诊断完成", 'success')
                 
             elif mode == 'punctuation':
+                self._update_progress(10, 100, '修复标点...')
                 self._run_punctuation(input_path, output_path_docx)
+                self._update_progress(100, 100, '完成')
                 self.root.after(0, lambda: self.result_panel.show_success(
                     "标点修复完成", Path(output_path).name
                 ))
@@ -1871,9 +2000,11 @@ class DocFormatApp:
                     temp_path = tmp.name
                 
                 self.log_panel.log("步骤 1/2: 修复标点...", 'info')
+                self._update_progress(0, 100, '步骤 1/2: 修复标点...')
                 self._run_punctuation(input_path, temp_path, quiet=True)
                 
                 self.log_panel.log("步骤 2/2: 应用格式...", 'info')
+                self._update_progress(5, 100, '步骤 2/2: 应用格式...')
                 self._run_format(temp_path, output_path_docx)
                 
                 os.unlink(temp_path)
@@ -1885,6 +2016,7 @@ class DocFormatApp:
             if mode != 'analyze' and needs_convert_back:
                 from scripts.converter import convert_from_docx
                 try:
+                    self._update_progress(90, 100, f'转换回 {output_ext} 格式...')
                     self.log_panel.log(f"正在转换回 {output_ext} 格式...", 'info')
                     actual_output = convert_from_docx(
                         output_path_docx, output_path,
@@ -1897,6 +2029,7 @@ class DocFormatApp:
                             f"保存 {output_ext} 需要安装 WPS Office，已自动保存为 .doc 格式",
                             'info'
                         )
+                    self._update_progress(100, 100, '完成')
                 except RuntimeError as e:
                     if "未检测到" in str(e):
                         self.root.after(0, lambda: messagebox.showerror(
@@ -1919,6 +2052,7 @@ class DocFormatApp:
                         except Exception:
                             pass
             
+            self._update_progress(100, 100, '完成')
             self.log_panel.log("全部完成", 'success')
             
             if mode != 'analyze':
@@ -1956,6 +2090,7 @@ class DocFormatApp:
     def _reset_btn(self):
         self.run_btn.configure(bg=Theme.PRIMARY)
         self.run_label.configure(bg=Theme.PRIMARY, text="开始处理")
+        self._hide_progress()
     
     def _run_punctuation(self, input_path, output_path, quiet=False):
         from docx import Document
@@ -1982,14 +2117,28 @@ class DocFormatApp:
     def _run_format(self, input_path, output_path):
         preset_name = self.preset.get()
         
-        import io
-        old_stdout = sys.stdout
-        sys.stdout = io.StringIO()
+        # 设置 logging handler，让 formatter 的日志输出到日志面板
+        import logging
+        
+        class LogPanelHandler(logging.Handler):
+            def __init__(self, log_panel):
+                super().__init__()
+                self.log_panel = log_panel
+            def emit(self, record):
+                msg = self.format(record)
+                self.log_panel.log(msg, 'info')
+        
+        formatter_logger = logging.getLogger('docformat.formatter')
+        handler = LogPanelHandler(self.log_panel)
+        handler.setFormatter(logging.Formatter('%(message)s'))
+        formatter_logger.addHandler(handler)
+        formatter_logger.setLevel(logging.INFO)
         
         try:
-            format_document(input_path, output_path, preset_name)
+            format_document(input_path, output_path, preset_name,
+                           progress_callback=self._update_progress)
         finally:
-            sys.stdout = old_stdout
+            formatter_logger.removeHandler(handler)
         
         if preset_name == 'custom':
             try:
