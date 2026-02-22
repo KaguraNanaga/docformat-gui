@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-打包脚本 - 生成 Windows/Linux 可执行文件
-用法：python build.py [windows|linux|all]
+打包脚本 - 生成 Windows/Linux/macOS 可执行文件
+用法：python build.py [windows|linux|macos|all|clean]
 """
 
 import os
@@ -121,6 +121,64 @@ def build_linux():
     return False
 
 
+def build_macos():
+    """构建 macOS 版本"""
+    print("\n" + "=" * 50)
+    print("构建 macOS 版本")
+    print("=" * 50)
+    
+    output_name = "docformat_macos"
+    
+    cmd = [
+        "pyinstaller",
+        "--onefile",
+        "--windowed",          # macOS 生成 .app bundle
+        f"--name={output_name}",
+        "--clean",
+        # macOS 路径分隔符与 Linux 相同
+        "--add-data=scripts:scripts",
+        "--hidden-import=docx",
+        "--hidden-import=lxml",
+        MAIN_SCRIPT
+    ]
+    
+    print(f"运行: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=False)
+    
+    if result.returncode == 0:
+        # --windowed 在 macOS 上会生成 .app 目录
+        app_path = DIST_DIR / f"{output_name}.app"
+        bin_path = DIST_DIR / output_name
+        
+        if app_path.exists():
+            print(f"\n✓ macOS 版本构建成功!")
+            print(f"  文件: {app_path}")
+            # 生成 DMG
+            dmg_path = DIST_DIR / f"{output_name}.dmg"
+            dmg_cmd = [
+                "hdiutil", "create",
+                "-volname", "DocFormatter",
+                "-srcfolder", str(app_path),
+                "-ov", "-format", "UDZO",
+                str(dmg_path)
+            ]
+            print(f"  正在生成 DMG...")
+            dmg_result = subprocess.run(dmg_cmd, capture_output=True)
+            if dmg_result.returncode == 0 and dmg_path.exists():
+                size_mb = dmg_path.stat().st_size / (1024 * 1024)
+                print(f"  DMG: {dmg_path} ({size_mb:.1f} MB)")
+            return True
+        elif bin_path.exists():
+            size_mb = bin_path.stat().st_size / (1024 * 1024)
+            print(f"\n✓ macOS 版本构建成功!")
+            print(f"  文件: {bin_path}")
+            print(f"  大小: {size_mb:.1f} MB")
+            return True
+    
+    print("\n✗ macOS 版本构建失败")
+    return False
+
+
 def create_release_notes():
     """生成发布说明"""
     notes = f"""# {APP_NAME} v{VERSION}
@@ -129,6 +187,7 @@ def create_release_notes():
 
 - **Windows**: `docformat_windows.exe` - 双击运行
 - **Linux (麒麟/UOS)**: `docformat_linux` - 添加执行权限后运行
+- **macOS**: `docformat_macos.dmg` - 双击挂载后拖入应用程序文件夹
 
 ## 功能
 
@@ -140,7 +199,8 @@ def create_release_notes():
 ## 系统要求
 
 - Windows 10/11 或
-- 麒麟 V10 / 统信 UOS 或其他 Linux 发行版
+- 麒麟 V10 / 统信 UOS 或其他 Linux 发行版 或
+- macOS 12 (Monterey) 或更高版本
 
 ## 使用说明
 
@@ -153,6 +213,7 @@ def create_release_notes():
 
 - 仅支持 .docx 格式，不支持旧版 .doc
 - 处理后的文件会另存为新文件，不会覆盖原文件
+- macOS 和 Linux 版本不支持 .doc/.wps 格式转换
 """
     
     release_file = DIST_DIR / "RELEASE_NOTES.md"
@@ -181,8 +242,8 @@ def main():
     # 解析参数
     target = sys.argv[1] if len(sys.argv) > 1 else "all"
     
-    if target not in ["windows", "linux", "all", "clean"]:
-        print(f"用法: python {sys.argv[0]} [windows|linux|all|clean]")
+    if target not in ["windows", "linux", "macos", "all", "clean"]:
+        print(f"用法: python {sys.argv[0]} [windows|linux|macos|all|clean]")
         sys.exit(1)
     
     # 清理
@@ -207,6 +268,12 @@ def main():
         else:
             print("\n⚠ 跳过 Linux 构建（需要在 Linux 系统上执行）")
     
+    if target in ["macos", "all"]:
+        if sys.platform == "darwin":
+            success = build_macos() and success
+        else:
+            print("\n⚠ 跳过 macOS 构建（需要在 macOS 系统上执行）")
+    
     # 生成发布说明
     if DIST_DIR.exists():
         create_release_notes()
@@ -219,8 +286,9 @@ def main():
         if DIST_DIR.exists():
             print("\n生成的文件:")
             for f in DIST_DIR.iterdir():
-                size = f.stat().st_size / (1024 * 1024)
-                print(f"  - {f.name} ({size:.1f} MB)")
+                if f.is_file():
+                    size = f.stat().st_size / (1024 * 1024)
+                    print(f"  - {f.name} ({size:.1f} MB)")
     else:
         print("✗ 构建过程中出现错误")
         sys.exit(1)

@@ -51,7 +51,10 @@ class Theme:
     LOG_ERROR = '#CF6B6B'
     
     # 字体 - 宋体优先
-    FONT_SERIF = ('Noto Serif SC', 'Source Han Serif SC', 'SimSun', 'PMingLiU', 'serif')
+    if sys.platform == 'darwin':
+        FONT_SERIF = ('PingFang SC', 'STSong', 'Songti SC', 'Heiti SC', 'serif')
+    else:
+        FONT_SERIF = ('Noto Serif SC', 'Source Han Serif SC', 'SimSun', 'PMingLiU', 'serif')
     
     # 间距
     SPACE_XS = 4
@@ -77,10 +80,16 @@ else:
     CONFIG_FILE = Path(__file__).parent / "custom_settings.json"
 
 # 常用字体列表
-COMMON_FONTS_CN = [
-    '仿宋_GB2312', '仿宋', '宋体', '黑体', '楷体_GB2312', '楷体',
-    '方正小标宋简体', '方正仿宋_GBK', '华文仿宋', '华文中宋'
-]
+if sys.platform == 'darwin':
+    COMMON_FONTS_CN = [
+        'STFangsong', 'STSong', 'STHeiti', 'STKaiti', 'STZhongsong',
+        'PingFang SC', 'Songti SC', 'Heiti SC',
+    ]
+else:
+    COMMON_FONTS_CN = [
+        '仿宋_GB2312', '仿宋', '宋体', '黑体', '楷体_GB2312', '楷体',
+        '方正小标宋简体', '方正仿宋_GBK', '华文仿宋', '华文中宋'
+    ]
 
 COMMON_FONTS_EN = [
     'Times New Roman', 'Arial', 'Calibri', 'Cambria'
@@ -1920,7 +1929,7 @@ class DocFormatApp:
             if input_ext in ('.doc', '.wps') or output_ext in ('.doc', '.wps'):
                 messagebox.showerror(
                     "不支持的格式",
-                    "Linux 版本仅支持 .docx 文件。.doc/.wps 请在 Windows 上转换，或先保存为 .docx 再处理。"
+                    "当前系统仅支持 .docx 文件。\n.doc/.wps 文件请先在WPS/Word 另存为 .docx 后再处理。"
                 )
                 return
         

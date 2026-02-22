@@ -69,8 +69,49 @@ jobs:
           name: linux-build
           path: dist/docformat_linux
 
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller python-docx
+
+      - name: Build macOS executable
+        run: |
+          pyinstaller --onefile --windowed --name=docformat_macos --add-data "scripts:scripts" --hidden-import=docx --hidden-import=lxml docformat_gui.py
+
+      - name: Package as DMG
+        run: |
+          # PyInstaller --windowed on macOS generates a .app bundle in dist/
+          # If .app exists, create a DMG; otherwise fall back to the single binary
+          if [ -d "dist/docformat_macos.app" ]; then
+            hdiutil create -volname "DocFormatter" -srcfolder dist/docformat_macos.app -ov -format UDZO dist/docformat_macos.dmg
+          elif [ -f "dist/docformat_macos" ]; then
+            mkdir -p dist/dmg_staging
+            cp dist/docformat_macos dist/dmg_staging/
+            hdiutil create -volname "DocFormatter" -srcfolder dist/dmg_staging -ov -format UDZO dist/docformat_macos.dmg
+          fi
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: |
+            dist/docformat_macos.dmg
+            dist/docformat_macos.app
+            dist/docformat_macos
+
   release:
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     
@@ -85,6 +126,14 @@ jobs:
         with:
           name: linux-build
           path: dist/
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build
+          path: dist/
+
+      - name: List dist contents
+        run: ls -laR dist/
 
       - name: Get version from tag
         id: get_version
@@ -108,9 +157,19 @@ jobs:
             2. `./docformat_linux`
             3. 仅支持 `.docx` 文件
             
+            ## macOS 版下载
+            
+            👉 [docformat_macos.dmg](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/docformat_macos.dmg)
+            
+            **macOS 运行说明**：
+            1. 双击 `.dmg` 文件挂载
+            2. 将应用拖入"应用程序"文件夹，或直接双击运行
+            3. 首次打开如提示"无法验证开发者"，右键点击应用 → 选择"打开"
+            4. 仅支持 `.docx` 文件（macOS 不支持 .doc/.wps 转换）
+            
             ## 使用说明
             
-            1. 下载 `docformat_windows.exe`
+            1. 下载对应系统的文件
             2. 双击运行
             3. 选择要处理的 .docx 文件
             4. 点击「开始处理」
@@ -125,6 +184,7 @@ jobs:
           files: |
             dist/docformat_windows.exe
             dist/docformat_linux
+            dist/docformat_macos.dmg
           draft: false
           prerelease: false
         env:

@@ -37,6 +37,36 @@ from docx.oxml import OxmlElement
 
 logger = logging.getLogger('docformat.formatter')
 
+# macOS 字体映射：Windows 字体名 → macOS 系统字体名
+MACOS_FONT_MAP = {
+    '仿宋_GB2312': 'STFangsong',
+    '仿宋': 'STFangsong',
+    '黑体': 'STHeiti',
+    '楷体_GB2312': 'STKaiti',
+    '楷体': 'STKaiti',
+    '宋体': 'STSong',
+    '方正小标宋简体': 'STSong',
+    '方正仿宋_GBK': 'STFangsong',
+    '华文仿宋': 'STFangsong',
+    '华文中宋': 'STZhongsong',
+}
+
+def _adapt_fonts_for_platform(preset):
+    """在 macOS 上将 Windows 字体名替换为 macOS 系统字体"""
+    if sys.platform != 'darwin':
+        return preset
+    import copy
+    preset = copy.deepcopy(preset)
+    for key, fmt in preset.items():
+        if isinstance(fmt, dict) and 'font_cn' in fmt:
+            original = fmt['font_cn']
+            fmt['font_cn'] = MACOS_FONT_MAP.get(original, original)
+    # 页码字体
+    if 'page_number_font' in preset:
+        original = preset['page_number_font']
+        preset['page_number_font'] = MACOS_FONT_MAP.get(original, original)
+    return preset
+
 # 字号对照：二号=22pt，三号=16pt，小四=12pt
 # 2字符缩进 = 2 × 16pt = 32pt（三号字）
 
@@ -873,6 +903,7 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
         logger.info(f'Preset: {preset["name"]}')
     
     logger.info(f'Input: {input_path}')
+    preset = _adapt_fonts_for_platform(preset)
     
     # 获取首句加粗选项
     first_line_bold = preset.get('first_line_bold', False)
@@ -1157,4 +1188,3 @@ if __name__ == '__main__':
             preset = sys.argv[idx + 1]
     
     format_document(input_file, output_file, preset)
-
