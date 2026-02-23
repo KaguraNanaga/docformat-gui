@@ -37,6 +37,89 @@ from docx.oxml import OxmlElement
 
 logger = logging.getLogger('docformat.formatter')
 
+# ===== 修复 PyInstaller 打包后 python-docx 找不到模板文件的问题 =====
+# python-docx 内部用 __file__ 相对路径去读 templates/default-footer.xml 等文件，
+# 在 PyInstaller --onefile 模式下该路径会指向临时解压目录，经常找不到文件。
+# 解决方案：直接将模板 XML 嵌入代码，monkey-patch 掉文件读取方法。
+def _patch_docx_templates():
+    """将 python-docx 的模板文件内容直接嵌入，消除对文件系统路径的依赖"""
+    from docx.parts.hdrftr import FooterPart, HeaderPart
+
+    _DEFAULT_FOOTER_XML = b"""\
+<?xml version='1.0' encoding='UTF-8' standalone='yes'?>
+<w:ftr
+    xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:mo="http://schemas.microsoft.com/office/mac/office/2008/main"
+    xmlns:mv="urn:schemas-microsoft-com:mac:vml"
+    xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    xmlns:v="urn:schemas-microsoft-com:vml"
+    xmlns:w10="urn:schemas-microsoft-com:office:word"
+    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
+    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"
+    xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+    xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+    xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+    xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk"
+    xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+    mc:Ignorable="w14 wp14"
+    >
+  <w:p>
+    <w:pPr>
+      <w:pStyle w:val="Footer"/>
+    </w:pPr>
+  </w:p>
+</w:ftr>
+"""
+
+    _DEFAULT_HEADER_XML = b"""\
+<?xml version='1.0' encoding='UTF-8' standalone='yes'?>
+<w:hdr
+    xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:mo="http://schemas.microsoft.com/office/mac/office/2008/main"
+    xmlns:mv="urn:schemas-microsoft-com:mac:vml"
+    xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    xmlns:v="urn:schemas-microsoft-com:vml"
+    xmlns:w10="urn:schemas-microsoft-com:office:word"
+    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
+    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"
+    xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+    xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+    xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+    xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk"
+    xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+    mc:Ignorable="w14 wp14"
+    >
+  <w:p>
+    <w:pPr>
+      <w:pStyle w:val="Header"/>
+    </w:pPr>
+  </w:p>
+</w:hdr>
+"""
+
+    @classmethod
+    def _patched_footer_xml(cls):
+        return _DEFAULT_FOOTER_XML
+
+    @classmethod
+    def _patched_header_xml(cls):
+        return _DEFAULT_HEADER_XML
+
+    FooterPart._default_footer_xml = _patched_footer_xml
+    HeaderPart._default_header_xml = _patched_header_xml
+    logger.debug("python-docx 模板补丁已应用（内嵌 XML，跳过文件读取）")
+
+_patch_docx_templates()
+# ===== 补丁结束 =====
+
 # macOS 字体映射：Windows 字体名 → macOS 系统字体名
 MACOS_FONT_MAP = {
     '仿宋_GB2312': 'STFangsong',
