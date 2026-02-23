@@ -73,12 +73,22 @@ def get_font(size=12, weight='normal'):
 # ===== 配置管理 =====
 import json
 
-if getattr(sys, 'frozen', False):
-    # PyInstaller 打包后，配置文件放在 exe 旁边（持久化）
-    CONFIG_FILE = Path(sys.executable).parent / "custom_settings.json"
-else:
-    # 开发环境，放在脚本旁边
-    CONFIG_FILE = Path(__file__).parent / "custom_settings.json"
+def _get_config_dir():
+    """获取配置文件存放目录（确保可写）"""
+    if not getattr(sys, 'frozen', False):
+        # 开发环境，放在脚本旁边
+        return Path(__file__).parent
+
+    if sys.platform == 'darwin':
+        # macOS 打包后：.app 包内部只读，配置文件放到用户目录
+        config_dir = Path.home() / 'Library' / 'Application Support' / 'DocFormatter'
+        config_dir.mkdir(parents=True, exist_ok=True)
+        return config_dir
+    else:
+        # Windows / Linux 打包后：exe 旁边（通常可写）
+        return Path(sys.executable).parent
+
+CONFIG_FILE = _get_config_dir() / "custom_settings.json"
 
 # 常用字体列表
 if sys.platform == 'darwin':
@@ -922,6 +932,8 @@ class CustomSettingsDialog(tk.Toplevel):
             
         except ValueError as e:
             messagebox.showerror("输入错误", f"请检查输入的数值是否正确：\n{e}", parent=self)
+        except Exception as e:
+            messagebox.showerror("保存失败", f"保存设置时出错：\n{e}\n\n配置文件路径：{CONFIG_FILE}", parent=self)
     
     def _on_close(self):
         result = messagebox.askyesnocancel("保存设置", "是否保存当前设置？", parent=self)
