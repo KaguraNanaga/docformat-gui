@@ -30,7 +30,9 @@ jobs:
 
       - name: Build Windows executable
         run: |
-          pyinstaller --onefile --windowed --name=docformat_windows --add-data "scripts;scripts" --collect-data=docx --hidden-import=docx --hidden-import=lxml --hidden-import=pythoncom --hidden-import=pywintypes docformat_gui.py
+          $docxPath = python -c "import docx, os; print(os.path.join(os.path.dirname(docx.__file__), 'templates'))"
+          echo "docx templates path: $docxPath"
+          pyinstaller --onefile --windowed --name=docformat_windows --add-data "scripts;scripts" --add-data "${docxPath};docx/templates" --hidden-import=docx --hidden-import=lxml --hidden-import=pythoncom --hidden-import=pywintypes docformat_gui.py
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -61,7 +63,12 @@ jobs:
 
       - name: Build Linux executable
         run: |
-          pyinstaller --onefile --name=docformat_linux --add-data "scripts:scripts" --collect-data=docx --hidden-import=docx --hidden-import=lxml docformat_gui.py
+          DOCX_TEMPLATES=$(python3 -c "import docx, os; print(os.path.join(os.path.dirname(docx.__file__), 'templates'))")
+          pyinstaller --onefile --name=docformat_linux \
+            --add-data "scripts:scripts" \
+            --add-data "${DOCX_TEMPLATES}:docx/templates" \
+            --hidden-import=docx --hidden-import=lxml \
+            docformat_gui.py
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
@@ -87,7 +94,14 @@ jobs:
 
       - name: Build macOS executable
         run: |
-          pyinstaller --onefile --windowed --name=docformat_macos --add-data "scripts:scripts" --collect-data=docx --hidden-import=docx --hidden-import=lxml docformat_gui.py
+          DOCX_TEMPLATES=$(python3 -c "import docx, os; print(os.path.join(os.path.dirname(docx.__file__), 'templates'))")
+          echo "docx templates path: ${DOCX_TEMPLATES}"
+          ls -la "${DOCX_TEMPLATES}/"
+          pyinstaller --onefile --windowed --name=docformat_macos \
+            --add-data "scripts:scripts" \
+            --add-data "${DOCX_TEMPLATES}:docx/templates" \
+            --hidden-import=docx --hidden-import=lxml \
+            docformat_gui.py
 
       - name: Package as DMG
         run: |

@@ -47,6 +47,18 @@ def clean():
         print(f"  删除 {f}")
 
 
+def _get_docx_templates_path():
+    """获取 python-docx 模板文件路径"""
+    try:
+        import docx
+        templates_dir = Path(docx.__file__).parent / "templates"
+        if templates_dir.exists():
+            return str(templates_dir)
+    except ImportError:
+        pass
+    return None
+
+
 def build_windows():
     """构建 Windows 版本"""
     print("\n" + "=" * 50)
@@ -54,6 +66,9 @@ def build_windows():
     print("=" * 50)
     
     output_name = f"docformat_windows"
+    
+    # 获取 docx 模板路径
+    docx_tpl = _get_docx_templates_path()
     
     cmd = [
         "pyinstaller",
@@ -63,8 +78,8 @@ def build_windows():
         "--clean",
         # 添加数据文件
         "--add-data=scripts;scripts",
-        # 隐藏导入
-        "--collect-data=docx",
+        # python-docx 模板文件（页眉页脚等必需）
+        f"--add-data={docx_tpl};docx/templates" if docx_tpl else "--collect-data=docx",
         "--hidden-import=docx",
         "--hidden-import=lxml",
         MAIN_SCRIPT
@@ -94,13 +109,17 @@ def build_linux():
     
     output_name = f"docformat_linux"
     
+    # 获取 docx 模板路径
+    docx_tpl = _get_docx_templates_path()
+    
     cmd = [
         "pyinstaller",
         "--onefile",
         f"--name={output_name}",
         "--clean",
         "--add-data=scripts:scripts",
-        "--collect-data=docx",
+        # python-docx 模板文件
+        f"--add-data={docx_tpl}:docx/templates" if docx_tpl else "--collect-data=docx",
         "--hidden-import=docx",
         "--hidden-import=lxml",
         MAIN_SCRIPT
@@ -130,6 +149,9 @@ def build_macos():
     
     output_name = "docformat_macos"
     
+    # 获取 docx 模板路径
+    docx_tpl = _get_docx_templates_path()
+    
     cmd = [
         "pyinstaller",
         "--onefile",
@@ -138,7 +160,8 @@ def build_macos():
         "--clean",
         # macOS 路径分隔符与 Linux 相同
         "--add-data=scripts:scripts",
-        "--collect-data=docx",
+        # python-docx 模板文件
+        f"--add-data={docx_tpl}:docx/templates" if docx_tpl else "--collect-data=docx",
         "--hidden-import=docx",
         "--hidden-import=lxml",
         MAIN_SCRIPT
