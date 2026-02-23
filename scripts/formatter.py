@@ -136,64 +136,101 @@ MACOS_FONT_FALLBACK = {
 
 # macOS 已安装字体缓存（启动时检测一次）
 _macos_installed_fonts = None
+_macos_font_detection_done = False
 
 def _get_macos_installed_fonts():
-    """获取 macOS 上已安装的字体名称集合（结果会缓存）"""
-    global _macos_installed_fonts
-    if _macos_installed_fonts is not None:
+    """获取 macOS 上已安装的字体族名集合（结果会缓存）
+    
+    检测策略（按可靠性排序）：
+    1. 调用 macOS 系统 Python 的 AppKit.NSFontManager（最准确）
+    2. 调用 fc-list（需要安装 fontconfig）
+    3. 如果都失败，返回 None 表示无法检测（调用方应保守处理）
+    """
+    global _macos_installed_fonts, _macos_font_detection_done
+    if _macos_font_detection_done:
         return _macos_installed_fonts
 
-    _macos_installed_fonts = set()
+    _macos_font_detection_done = True
+
     if sys.platform != 'darwin':
+        _macos_installed_fonts = set()
         return _macos_installed_fonts
 
+    import subprocess
+
+    # 方法1：通过 macOS 系统 Python 调用 AppKit（最可靠）
+    # /usr/bin/python3 自带 PyObjC，能获取精确的字体族名
     try:
-        import subprocess
-        # 使用 macOS 系统命令列出所有已安装字体的 family name
+        result = subprocess.run(
+            ['/usr/bin/python3', '-c',
+             'from AppKit import NSFontManager;'
+             'fm=NSFontManager.sharedFontManager();'
+             'print("\\n".join(fm.availableFontFamilies()))'],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            fonts = {name.strip() for name in result.stdout.strip().split('\n') if name.strip()}
+            if len(fonts) > 10:  # 合理性校验
+                _macos_installed_fonts = fonts
+                logger.info(f"macOS 字体检测成功（AppKit），共 {len(fonts)} 个字体族")
+                return _macos_installed_fonts
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+        logger.debug(f"AppKit 字体检测失败: {e}")
+
+    # 方法2：fc-list（需安装 fontconfig，如通过 Homebrew）
+    try:
         result = subprocess.run(
             ['fc-list', '--format=%{family}\n'],
             capture_output=True, text=True, timeout=10
         )
-        if result.returncode == 0:
+        if result.returncode == 0 and result.stdout.strip():
+            fonts = set()
             for line in result.stdout.strip().split('\n'):
                 for name in line.split(','):
-                    _macos_installed_fonts.add(name.strip())
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
+                    name = name.strip()
+                    if name:
+                        fonts.add(name)
+            if len(fonts) > 10:
+                _macos_installed_fonts = fonts
+                logger.info(f"macOS 字体检测成功（fc-list），共 {len(fonts)} 个字体族")
+                return _macos_installed_fonts
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+        logger.debug(f"fc-list 字体检测失败: {e}")
 
-    if not _macos_installed_fonts:
-        # fc-list 不可用时，扫描字体目录中的文件名作为粗略判断
-        import os
-        font_dirs = [
-            os.path.expanduser('~/Library/Fonts'),
-            '/Library/Fonts',
-            '/System/Library/Fonts',
-            '/System/Library/Fonts/Supplemental',
-        ]
-        for d in font_dirs:
-            if os.path.isdir(d):
-                for f in os.listdir(d):
-                    _macos_installed_fonts.add(os.path.splitext(f)[0])
-
-    logger.debug(f"macOS 已安装字体数量: {len(_macos_installed_fonts)}")
+    # 都失败了，返回 None（调用方据此决定：无法检测时不替换）
+    logger.warning("macOS 字体检测失败，将保持原字体名称不替换")
+    _macos_installed_fonts = None
     return _macos_installed_fonts
 
 def _resolve_font_for_macos(font_name):
-    """解析单个字体名：已安装则原样返回，否则回退到 macOS 系统字体"""
+    """解析单个字体名：优先保留 Windows 原字体名，仅在确认未安装时回退
+    
+    策略：
+    - 字体不在映射表中 → 原样返回
+    - 无法检测已安装字体 → 原样返回（宁可让 Word 自动替换，也不主动改错）
+    - 检测到已安装 → 原样返回
+    - 检测到未安装 → 使用 macOS 系统字体回退
+    """
     if font_name not in MACOS_FONT_FALLBACK:
-        return font_name  # 不在映射表中的字体，原样返回
+        return font_name
 
     installed = _get_macos_installed_fonts()
+
+    # 无法检测时，保守策略：不替换，让 Word/WPS 自行处理
+    if installed is None:
+        logger.debug(f"字体检测不可用，保留原字体名 '{font_name}'")
+        return font_name
+
     if font_name in installed:
         logger.debug(f"字体 '{font_name}' 已安装，直接使用")
         return font_name
 
     fallback = MACOS_FONT_FALLBACK[font_name]
-    logger.debug(f"字体 '{font_name}' 未安装，回退到 '{fallback}'")
+    logger.info(f"字体 '{font_name}' 未安装，回退到 '{fallback}'")
     return fallback
 
 def _adapt_fonts_for_platform(preset):
-    """在 macOS 上适配字体：优先使用 Windows 原字体，未安装时回退到系统字体"""
+    """在 macOS 上适配字体：优先使用 Windows 原字体，确认未安装时才回退到系统字体"""
     if sys.platform != 'darwin':
         return preset
     import copy

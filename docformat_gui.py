@@ -52,7 +52,8 @@ class Theme:
     
     # 字体 - 宋体优先
     if sys.platform == 'darwin':
-        FONT_SERIF = ('PingFang SC', 'STSong', 'Songti SC', 'Heiti SC', 'serif')
+        # 优先尝试 Windows 字体（用户可能已安装），再回退到 macOS 系统字体
+        FONT_SERIF = ('宋体', 'SimSun', 'STSong', 'Songti SC', 'PingFang SC', 'Heiti SC', 'serif')
     else:
         FONT_SERIF = ('Noto Serif SC', 'Source Han Serif SC', 'SimSun', 'PMingLiU', 'serif')
     
@@ -912,7 +913,11 @@ class CustomSettingsDialog(tk.Toplevel):
             if self.on_save:
                 self.on_save(self.settings)
             
-            messagebox.showinfo("保存成功", "自定义格式设置已保存", parent=self)
+            # 先释放模态锁，再关闭窗口（macOS 上 grab + messagebox + destroy 可能卡死）
+            try:
+                self.grab_release()
+            except Exception:
+                pass
             self.destroy()
             
         except ValueError as e:
@@ -925,6 +930,10 @@ class CustomSettingsDialog(tk.Toplevel):
         if result:
             self._save()
         else:
+            try:
+                self.grab_release()
+            except Exception:
+                pass
             self.destroy()
 
 
