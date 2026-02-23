@@ -120,8 +120,8 @@ def _patch_docx_templates():
 _patch_docx_templates()
 # ===== 补丁结束 =====
 
-# macOS 字体映射：Windows 字体名 → macOS 系统字体名
-MACOS_FONT_MAP = {
+# macOS 字体回退映射：Windows 字体名 → macOS 系统字体名（仅当原字体未安装时使用）
+MACOS_FONT_FALLBACK = {
     '仿宋_GB2312': 'STFangsong',
     '仿宋': 'STFangsong',
     '黑体': 'STHeiti',
@@ -134,20 +134,76 @@ MACOS_FONT_MAP = {
     '华文中宋': 'STZhongsong',
 }
 
+# macOS 已安装字体缓存（启动时检测一次）
+_macos_installed_fonts = None
+
+def _get_macos_installed_fonts():
+    """获取 macOS 上已安装的字体名称集合（结果会缓存）"""
+    global _macos_installed_fonts
+    if _macos_installed_fonts is not None:
+        return _macos_installed_fonts
+
+    _macos_installed_fonts = set()
+    if sys.platform != 'darwin':
+        return _macos_installed_fonts
+
+    try:
+        import subprocess
+        # 使用 macOS 系统命令列出所有已安装字体的 family name
+        result = subprocess.run(
+            ['fc-list', '--format=%{family}\n'],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n'):
+                for name in line.split(','):
+                    _macos_installed_fonts.add(name.strip())
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    if not _macos_installed_fonts:
+        # fc-list 不可用时，扫描字体目录中的文件名作为粗略判断
+        import os
+        font_dirs = [
+            os.path.expanduser('~/Library/Fonts'),
+            '/Library/Fonts',
+            '/System/Library/Fonts',
+            '/System/Library/Fonts/Supplemental',
+        ]
+        for d in font_dirs:
+            if os.path.isdir(d):
+                for f in os.listdir(d):
+                    _macos_installed_fonts.add(os.path.splitext(f)[0])
+
+    logger.debug(f"macOS 已安装字体数量: {len(_macos_installed_fonts)}")
+    return _macos_installed_fonts
+
+def _resolve_font_for_macos(font_name):
+    """解析单个字体名：已安装则原样返回，否则回退到 macOS 系统字体"""
+    if font_name not in MACOS_FONT_FALLBACK:
+        return font_name  # 不在映射表中的字体，原样返回
+
+    installed = _get_macos_installed_fonts()
+    if font_name in installed:
+        logger.debug(f"字体 '{font_name}' 已安装，直接使用")
+        return font_name
+
+    fallback = MACOS_FONT_FALLBACK[font_name]
+    logger.debug(f"字体 '{font_name}' 未安装，回退到 '{fallback}'")
+    return fallback
+
 def _adapt_fonts_for_platform(preset):
-    """在 macOS 上将 Windows 字体名替换为 macOS 系统字体"""
+    """在 macOS 上适配字体：优先使用 Windows 原字体，未安装时回退到系统字体"""
     if sys.platform != 'darwin':
         return preset
     import copy
     preset = copy.deepcopy(preset)
     for key, fmt in preset.items():
         if isinstance(fmt, dict) and 'font_cn' in fmt:
-            original = fmt['font_cn']
-            fmt['font_cn'] = MACOS_FONT_MAP.get(original, original)
+            fmt['font_cn'] = _resolve_font_for_macos(fmt['font_cn'])
     # 页码字体
     if 'page_number_font' in preset:
-        original = preset['page_number_font']
-        preset['page_number_font'] = MACOS_FONT_MAP.get(original, original)
+        preset['page_number_font'] = _resolve_font_for_macos(preset['page_number_font'])
     return preset
 
 # 字号对照：二号=22pt，三号=16pt，小四=12pt

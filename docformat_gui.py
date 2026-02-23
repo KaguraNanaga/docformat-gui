@@ -81,7 +81,10 @@ else:
 
 # 常用字体列表
 if sys.platform == 'darwin':
+    # macOS：优先显示 Windows 字体名（用户可能已安装），再列出 macOS 系统字体作为备选
     COMMON_FONTS_CN = [
+        '仿宋_GB2312', '仿宋', '宋体', '黑体', '楷体_GB2312', '楷体',
+        '方正小标宋简体', '方正仿宋_GBK', '华文仿宋', '华文中宋',
         'STFangsong', 'STSong', 'STHeiti', 'STKaiti', 'STZhongsong',
         'PingFang SC', 'Songti SC', 'Heiti SC',
     ]
