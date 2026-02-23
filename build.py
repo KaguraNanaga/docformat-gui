@@ -64,6 +64,7 @@ def build_windows():
         # 添加数据文件
         "--add-data=scripts;scripts",
         # 隐藏导入
+        "--collect-data=docx",
         "--hidden-import=docx",
         "--hidden-import=lxml",
         MAIN_SCRIPT
@@ -98,8 +99,8 @@ def build_linux():
         "--onefile",
         f"--name={output_name}",
         "--clean",
-        # Linux 路径分隔符
         "--add-data=scripts:scripts",
+        "--collect-data=docx",
         "--hidden-import=docx",
         "--hidden-import=lxml",
         MAIN_SCRIPT
@@ -137,6 +138,7 @@ def build_macos():
         "--clean",
         # macOS 路径分隔符与 Linux 相同
         "--add-data=scripts:scripts",
+        "--collect-data=docx",
         "--hidden-import=docx",
         "--hidden-import=lxml",
         MAIN_SCRIPT

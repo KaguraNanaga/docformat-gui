@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Windows executable
         run: |
-          pyinstaller --onefile --windowed --name=docformat_windows --add-data "scripts;scripts" --hidden-import=docx --hidden-import=lxml --hidden-import=pythoncom --hidden-import=pywintypes docformat_gui.py
+          pyinstaller --onefile --windowed --name=docformat_windows --add-data "scripts;scripts" --collect-data=docx --hidden-import=docx --hidden-import=lxml --hidden-import=pythoncom --hidden-import=pywintypes docformat_gui.py
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -61,7 +61,7 @@ jobs:
 
       - name: Build Linux executable
         run: |
-          pyinstaller --onefile --name=docformat_linux --add-data "scripts:scripts" --hidden-import=docx --hidden-import=lxml docformat_gui.py
+          pyinstaller --onefile --name=docformat_linux --add-data "scripts:scripts" --collect-data=docx --hidden-import=docx --hidden-import=lxml docformat_gui.py
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
@@ -87,7 +87,7 @@ jobs:
 
       - name: Build macOS executable
         run: |
-          pyinstaller --onefile --windowed --name=docformat_macos --add-data "scripts:scripts" --hidden-import=docx --hidden-import=lxml docformat_gui.py
+          pyinstaller --onefile --windowed --name=docformat_macos --add-data "scripts:scripts" --collect-data=docx --hidden-import=docx --hidden-import=lxml docformat_gui.py
 
       - name: Package as DMG
         run: |
