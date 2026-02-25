@@ -8,7 +8,7 @@ import os
 import sys
 import threading
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 from pathlib import Path
 
 # 添加scripts目录到路径
@@ -255,7 +255,9 @@ class CustomSettingsDialog(tk.Toplevel):
         self.geometry(f"+{max(0, x)}+{max(0, y)}")
         
         self._create_widgets()
+        self.update_idletasks()   # 确保所有控件完成布局
         self._load_values()
+        self.after_idle(self._load_values)  # 事件循环空闲后再刷新一次，兜底
     
     # ==================== 界面构建 ====================
     
@@ -357,6 +359,11 @@ class CustomSettingsDialog(tk.Toplevel):
         tk.Entry(row_t, textvariable=self.title_line_spacing_var, font=get_font(11), width=5, relief='solid', bd=1).pack(side='left', padx=3)
         tk.Label(row_t, text="磅", font=get_font(10), bg=Theme.BG, fg=Theme.TEXT_MUTED).pack(side='left')
         
+        self.title_bold_var = tk.BooleanVar(value=self.settings.get('title', {}).get('bold', False))
+        tk.Checkbutton(row_t, text="加粗", variable=self.title_bold_var,
+                        font=get_font(11), bg=Theme.BG, fg=Theme.TEXT,
+                        activebackground=Theme.BG, selectcolor=Theme.CARD).pack(side='left', padx=(10, 0))
+        
         # --- 一级标题 / 二级标题 ---
         self._create_section(main, "🔤 各级标题字体", pad_x)
         heading_frame = tk.Frame(main, bg=Theme.BG)
@@ -373,6 +380,11 @@ class CustomSettingsDialog(tk.Toplevel):
         self._create_combobox(row_h1, self.h1_size_var, [f"{name}({pt}pt)" for name, pt in FONT_SIZES], width=11,
                               initial_value=self._size_display(self.settings.get('heading1', {}).get('size', 16))).pack(side='left', padx=3)
         
+        self.h1_bold_var = tk.BooleanVar(value=self.settings.get('heading1', {}).get('bold', False))
+        tk.Checkbutton(row_h1, text="加粗", variable=self.h1_bold_var,
+                        font=get_font(11), bg=Theme.BG, fg=Theme.TEXT,
+                        activebackground=Theme.BG, selectcolor=Theme.CARD).pack(side='left', padx=(10, 0))
+        
         row_h2 = tk.Frame(heading_frame, bg=Theme.BG)
         row_h2.pack(fill='x', pady=2)
         tk.Label(row_h2, text="二级((一)):", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=10, anchor='e').pack(side='left')
@@ -383,6 +395,11 @@ class CustomSettingsDialog(tk.Toplevel):
         self.h2_size_var = tk.StringVar()
         self._create_combobox(row_h2, self.h2_size_var, [f"{name}({pt}pt)" for name, pt in FONT_SIZES], width=11,
                               initial_value=self._size_display(self.settings.get('heading2', {}).get('size', 16))).pack(side='left', padx=3)
+        
+        self.h2_bold_var = tk.BooleanVar(value=self.settings.get('heading2', {}).get('bold', False))
+        tk.Checkbutton(row_h2, text="加粗", variable=self.h2_bold_var,
+                        font=get_font(11), bg=Theme.BG, fg=Theme.TEXT,
+                        activebackground=Theme.BG, selectcolor=Theme.CARD).pack(side='left', padx=(10, 0))
         
         # --- 正文格式 ---
         self._create_section(main, "📖 正文格式", pad_x)
@@ -405,6 +422,11 @@ class CustomSettingsDialog(tk.Toplevel):
         self.line_spacing_var = tk.StringVar(value=str(self.settings.get('body', {}).get('line_spacing', 28) or ''))
         tk.Entry(row_b1, textvariable=self.line_spacing_var, font=get_font(11), width=5, relief='solid', bd=1).pack(side='left', padx=3)
         tk.Label(row_b1, text="磅", font=get_font(10), bg=Theme.BG, fg=Theme.TEXT_MUTED).pack(side='left')
+        
+        self.body_bold_var = tk.BooleanVar(value=self.settings.get('body', {}).get('bold', False))
+        tk.Checkbutton(row_b1, text="加粗", variable=self.body_bold_var,
+                        font=get_font(11), bg=Theme.BG, fg=Theme.TEXT,
+                        activebackground=Theme.BG, selectcolor=Theme.CARD).pack(side='left', padx=(10, 0))
         
         row_b2 = tk.Frame(body_frame, bg=Theme.BG)
         row_b2.pack(fill='x', pady=2)
@@ -528,7 +550,7 @@ class CustomSettingsDialog(tk.Toplevel):
         cancel_btn.pack(side='right', padx=(0, 15))
         cancel_btn.bind('<Button-1>', lambda e: self._on_close())
         
-        size_grip = tk.Sizegrip(btn_frame)
+        size_grip = ttk.Sizegrip(btn_frame)
         size_grip.pack(side='right', padx=(0, 2), pady=(2, 0))
     
     def _create_advanced_section(self, parent, pad_x):
@@ -580,7 +602,7 @@ class CustomSettingsDialog(tk.Toplevel):
             self._create_adv_element_row(self._adv_content, pad_x, key, label, default_font, default_size)
     
     def _create_adv_element_row(self, parent, pad_x, key, label, default_font, default_size):
-        """创建高级设置中的一个元素行：中文字体 + 英数字体 + 字号 + 行距"""
+        """创建高级设置中的一个元素行：中文字体 + 英数字体 + 字号 + 行距 + 加粗"""
         row = tk.Frame(parent, bg=Theme.BG)
         row.pack(fill='x', padx=pad_x, pady=2)
         
@@ -609,8 +631,15 @@ class CustomSettingsDialog(tk.Toplevel):
         ls_var = tk.StringVar(value=str(ls_val) if ls_val else '')
         tk.Entry(row, textvariable=ls_var, font=get_font(10), width=4, relief='solid', bd=1).pack(side='left', padx=3)
         
+        # 加粗
+        default_bold = DEFAULT_CUSTOM_SETTINGS.get(key, {}).get('bold', False)
+        bold_var = tk.BooleanVar(value=self.settings.get(key, {}).get('bold', default_bold))
+        tk.Checkbutton(row, text="粗", variable=bold_var,
+                        font=get_font(10), bg=Theme.BG, fg=Theme.TEXT,
+                        activebackground=Theme.BG, selectcolor=Theme.CARD).pack(side='left', padx=(6, 0))
+        
         # 存储变量引用
-        self._adv_vars[key] = {'font': font_var, 'font_en': font_en_var, 'size': size_var, 'line_spacing': ls_var}
+        self._adv_vars[key] = {'font': font_var, 'font_en': font_en_var, 'size': size_var, 'line_spacing': ls_var, 'bold': bold_var}
         
         # 记录初始值，用于判断用户是否修改过高级设置
         if not hasattr(self, '_adv_initial_values'):
@@ -620,6 +649,7 @@ class CustomSettingsDialog(tk.Toplevel):
             'font_en': font_en_var.get(),
             'size': size_var.get(),
             'line_spacing': ls_var.get(),
+            'bold': bold_var.get(),
         }
     
     def _toggle_advanced(self):
@@ -690,6 +720,9 @@ class CustomSettingsDialog(tk.Toplevel):
             reordered = list(values)
         
         menu = tk.OptionMenu(frame, variable, *reordered)
+        # tk.OptionMenu 不会可靠地设置 StringVar，需要手动设置
+        if initial_value is not None:
+            variable.set(initial_value)
         menu.configure(
             font=get_font(10), bg=Theme.INPUT_BG, fg=Theme.TEXT,
             activebackground=Theme.PRIMARY_LIGHT, activeforeground=Theme.TEXT,
@@ -747,17 +780,21 @@ class CustomSettingsDialog(tk.Toplevel):
             self.title_font_var.set(s.get('title', {}).get('font_cn', '方正小标宋简体'))
             self._set_size_var(self.title_size_var, s.get('title', {}).get('size', 22))
             self.title_line_spacing_var.set(str(s.get('title', {}).get('line_spacing', 28) or ''))
+            self.title_bold_var.set(s.get('title', {}).get('bold', False))
             
             # 一/二级标题
             self.h1_font_var.set(s.get('heading1', {}).get('font_cn', '黑体'))
             self._set_size_var(self.h1_size_var, s.get('heading1', {}).get('size', 16))
+            self.h1_bold_var.set(s.get('heading1', {}).get('bold', False))
             self.h2_font_var.set(s.get('heading2', {}).get('font_cn', '楷体_GB2312'))
             self._set_size_var(self.h2_size_var, s.get('heading2', {}).get('size', 16))
+            self.h2_bold_var.set(s.get('heading2', {}).get('bold', False))
             
             # 正文
             self.body_font_var.set(s.get('body', {}).get('font_cn', '仿宋_GB2312'))
             self._set_size_var(self.body_size_var, s.get('body', {}).get('size', 16))
             self.line_spacing_var.set(str(s.get('body', {}).get('line_spacing', 28) or ''))
+            self.body_bold_var.set(s.get('body', {}).get('bold', False))
             
             body_size = s.get('body', {}).get('size', 16) or 16
             indent = s.get('body', {}).get('indent', 32)
@@ -784,6 +821,8 @@ class CustomSettingsDialog(tk.Toplevel):
                 self._set_size_var(vars_dict['size'], elem.get('size', 16))
                 ls = elem.get('line_spacing', '')
                 vars_dict['line_spacing'].set(str(ls) if ls else '')
+                default_bold = DEFAULT_CUSTOM_SETTINGS.get(key, {}).get('bold', False)
+                vars_dict['bold'].set(elem.get('bold', default_bold))
         except Exception as e:
             print(f"[警告] 加载设置到界面失败: {e}")
     
@@ -822,6 +861,7 @@ class CustomSettingsDialog(tk.Toplevel):
             indent_pt = indent_chars * body_size
             
             body_font = self.body_font_var.get()
+            body_bold = self.body_bold_var.get()
             
             # 构建基础设置 — 正文字体联动到多个元素
             self.settings = {
@@ -829,57 +869,57 @@ class CustomSettingsDialog(tk.Toplevel):
                 'page': page,
                 'title': {
                     'font_cn': self.title_font_var.get(), 'font_en': 'Times New Roman',
-                    'size': title_size, 'bold': False, 'align': 'center', 'indent': 0,
+                    'size': title_size, 'bold': self.title_bold_var.get(), 'align': 'center', 'indent': 0,
                     'line_spacing': title_ls, 'space_before': 0, 'space_after': 0
                 },
                 'recipient': {
                     'font_cn': body_font, 'font_en': 'Times New Roman',
-                    'size': body_size, 'bold': False, 'align': 'left', 'indent': 0,
+                    'size': body_size, 'bold': body_bold, 'align': 'left', 'indent': 0,
                     'line_spacing': body_ls, 'space_before': 0, 'space_after': 0
                 },
                 'heading1': {
                     'font_cn': self.h1_font_var.get(), 'font_en': 'Times New Roman',
-                    'size': h1_size, 'bold': False, 'align': 'left', 'indent': indent_pt,
+                    'size': h1_size, 'bold': self.h1_bold_var.get(), 'align': 'left', 'indent': indent_pt,
                     'line_spacing': body_ls, 'space_before': 0, 'space_after': 0
                 },
                 'heading2': {
                     'font_cn': self.h2_font_var.get(), 'font_en': 'Times New Roman',
-                    'size': h2_size, 'bold': False, 'align': 'left', 'indent': indent_pt,
+                    'size': h2_size, 'bold': self.h2_bold_var.get(), 'align': 'left', 'indent': indent_pt,
                     'line_spacing': body_ls, 'space_before': 0, 'space_after': 0
                 },
                 'heading3': {
                     'font_cn': body_font, 'font_en': 'Times New Roman',
-                    'size': body_size, 'bold': False, 'align': 'left', 'indent': indent_pt,
+                    'size': body_size, 'bold': body_bold, 'align': 'left', 'indent': indent_pt,
                     'line_spacing': body_ls, 'space_before': 0, 'space_after': 0
                 },
                 'heading4': {
                     'font_cn': body_font, 'font_en': 'Times New Roman',
-                    'size': body_size, 'bold': False, 'align': 'left', 'indent': indent_pt,
+                    'size': body_size, 'bold': body_bold, 'align': 'left', 'indent': indent_pt,
                     'line_spacing': body_ls, 'space_before': 0, 'space_after': 0
                 },
                 'body': {
                     'font_cn': body_font, 'font_en': 'Times New Roman',
-                    'size': body_size, 'bold': False, 'align': 'justify', 'indent': indent_pt,
+                    'size': body_size, 'bold': body_bold, 'align': 'justify', 'indent': indent_pt,
                     'line_spacing': body_ls, 'space_before': 0, 'space_after': 0
                 },
                 'signature': {
                     'font_cn': body_font, 'font_en': 'Times New Roman',
-                    'size': body_size, 'bold': False, 'align': 'right', 'indent': 0,
+                    'size': body_size, 'bold': body_bold, 'align': 'right', 'indent': 0,
                     'line_spacing': body_ls, 'space_before': 0, 'space_after': 0
                 },
                 'date': {
                     'font_cn': body_font, 'font_en': 'Times New Roman',
-                    'size': body_size, 'bold': False, 'align': 'right', 'indent': 0,
+                    'size': body_size, 'bold': body_bold, 'align': 'right', 'indent': 0,
                     'line_spacing': body_ls, 'space_before': 0, 'space_after': 0
                 },
                 'attachment': {
                     'font_cn': body_font, 'font_en': 'Times New Roman',
-                    'size': body_size, 'bold': False, 'align': 'justify', 'indent': indent_pt,
+                    'size': body_size, 'bold': body_bold, 'align': 'justify', 'indent': indent_pt,
                     'line_spacing': body_ls, 'space_before': 0, 'space_after': 0
                 },
                 'closing': {
                     'font_cn': body_font, 'font_en': 'Times New Roman',
-                    'size': body_size, 'bold': False, 'align': 'left', 'indent': indent_pt,
+                    'size': body_size, 'bold': body_bold, 'align': 'left', 'indent': indent_pt,
                     'line_spacing': body_ls, 'space_before': 0, 'space_after': 0
                 },
                 'table': {
@@ -917,6 +957,9 @@ class CustomSettingsDialog(tk.Toplevel):
                             self.settings[key]['line_spacing'] = int(float(adv_ls_str))
                         except ValueError:
                             pass
+                    adv_bold = vars_dict['bold'].get()
+                    if adv_bold != key_initial.get('bold', False):
+                        self.settings[key]['bold'] = adv_bold
             
             save_custom_settings(self.settings)
             
@@ -1766,7 +1809,7 @@ class DocFormatApp:
     def _show_about(self):
         """显示关于对话框"""
         about_text = (
-            "公文格式处理工具  v1.1.3\n\n"
+            "公文格式处理工具  v1.4.0\n\n"
             "一键将 Word 文档排版为标准公文格式\n\n"
             "开发者：KaguraNanaga\n"
             "许可证：MIT License\n"

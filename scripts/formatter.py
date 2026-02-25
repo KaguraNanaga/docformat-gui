@@ -250,7 +250,11 @@ def _adapt_fonts_for_platform(preset):
 def load_custom_preset():
     """加载自定义预设"""
     if getattr(sys, 'frozen', False):
-        custom_config_file = Path(sys.executable).parent / "custom_settings.json"
+        if sys.platform == 'darwin':
+            # macOS 打包后：与 GUI 保持一致，从用户目录读取
+            custom_config_file = Path.home() / 'Library' / 'Application Support' / 'DocFormatter' / "custom_settings.json"
+        else:
+            custom_config_file = Path(sys.executable).parent / "custom_settings.json"
     else:
         custom_config_file = Path(__file__).parent.parent / "custom_settings.json"
     if custom_config_file.exists():
