@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Windows%207%2B%20%7C%20macOS%20%7C%20Linux-blue" alt="Platform">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Language-Python-yellow" alt="Language">
 </p>
@@ -33,13 +33,16 @@
 - **🔒 安全离线** — 纯本地运行，数据不联网，保障公文安全
 - **📋 标准规范** — 严格遵循党政机关公文格式标准
 
+**v1.5.0 更新：**
+- **💻 Windows 7 支持** — 新增 Windows 7/8 兼容版本，使用 Python 3.8 构建，覆盖更多老旧设备
+
 **v1.4.0 更新：**
 - **🍎 macOS 支持** — 新增 macOS 版本（.dmg 安装包），支持 Intel 和 Apple Silicon 芯片
 - **🔧 自定义配置修复** — 修复保存自定义格式后重新打开不回显的问题
 - **🅱️ 加粗功能增强** — 标题、各级标题、正文均可自定义加粗，高级设置支持逐元素独立控制
 - **🛠️ macOS 打包兼容性** — 修复 macOS 打包后自定义格式失效的路径问题
 
-**02.07更新：**
+**v1.3.0 更新：**
 - **📂  `.doc` / `.wps` 兼容** — 完整支持 `.doc` 和 `.wps` 格式的输入与输出，无需手动转换，兼容 WPS 及 Microsoft Office 生态
 - **📊 表格自动调整** — 智能识别文档中的表格，自动调整列宽、行高及单元格格式，使表格排版整齐规范。
 - **⚙️ 自定义格式配置** — 支持用户自定义页边距、行距、字体字号等格式参数，满足不同排版需求。
@@ -69,13 +72,24 @@
 
 ## 下载安装
 
-### Windows 用户
+### Windows 10/11 用户
 
 1. **点击下载**：[**Document_Format_GUI.exe**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_windows.exe)
 2. 下载后双击即可运行，无需安装 Python，绿色纯净。
 
 > **注意**：
 > * 支持 `.docx`、`.doc` 及 `.wps` 格式文档。
+
+### Windows 7/8 用户
+
+1. **点击下载**：[**Document_Format_GUI_Win7.exe**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_windows_win7.exe)
+2. 下载后双击即可运行，无需安装 Python。
+
+> **注意**：
+> * 需要 Windows 7 SP1 或更高版本
+> * 需要安装 Microsoft Office 或 WPS Office 才能处理 `.doc` / `.wps` 格式
+> * 推荐使用 `.docx` 格式以获得最佳兼容性
+> * 如果双击后闪退，请安装 [Visual C++ Redistributable 2015-2022](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
 ### macOS 用户
 
@@ -149,6 +163,12 @@ A：在终端中执行以下命令移除隔离属性，然后重新打开：
 ```bash
 xattr -cr /Applications/docformat_macos.app
 ```
+
+**Q：Windows 7 上运行闪退或报错怎么办？**
+A：请确保：
+1. 已安装 Windows 7 SP1
+2. 已安装 [Visual C++ Redistributable 2015-2022](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+3. 下载的是 Win7 专用版本（文件名含 `_win7`）
 
 **Q：为什么提示「文件不存在」？**
 A：请检查文件名或文件夹路径中是否包含极其生僻的特殊字符。建议将文件放在桌面或纯英文路径下尝试。
