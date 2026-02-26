@@ -1,0 +1,9 @@
+# Python 3.8 + Windows 7 兼容依赖
+# python-docx 1.2.0+ 要求 Python 3.9+
+python-docx>=0.8.11,<1.2.0
+# lxml 5.0+ 可能不支持 Python 3.8
+lxml>=4.9,<5.0
+# pywin32 用于 .doc/.wps 转换 (COM调用)
+pywin32>=305,<307; sys_platform == 'win32'
+# PyInstaller 5.x 对 Python 3.8 支持最稳定
+pyinstaller>=5.13,<6.0
