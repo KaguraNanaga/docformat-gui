@@ -1,8 +1,22 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 打包脚本 - 生成 Windows/Linux/macOS 可执行文件
 用法：python build.py [windows|linux|macos|all|clean]
 """
+
+import os
+import sys
+import shutil
+import subprocess
+from pathlib import Path
+
+# 设置 UTF-8 编码
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 import os
 import sys
