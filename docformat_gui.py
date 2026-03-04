@@ -1069,14 +1069,16 @@ class Icons:
 
 
 class FileInputField(tk.Frame):
-    """文件输入框 - 带明显容器"""
+    """文件输入框 - 带明显容器（支持多文件模式）"""
     
-    def __init__(self, parent, label_text, placeholder, variable, command, **kwargs):
+    def __init__(self, parent, label_text, placeholder, variable, command, multi_file=False, files_var=None, **kwargs):
         super().__init__(parent, bg=Theme.BG, **kwargs)
         
         self.variable = variable
         self.command = command
         self.placeholder = placeholder
+        self.multi_file = multi_file
+        self.files_var = files_var  # 用于存储多文件列表
         
         # 标签
         tk.Label(
@@ -1102,16 +1104,17 @@ class FileInputField(tk.Frame):
         inner = tk.Frame(self.container, bg=Theme.INPUT_BG)
         inner.pack(fill='both', expand=True, padx=Theme.SPACE_MD, pady=Theme.SPACE_SM + 2)
         
-        # 文件名显示
-        self.filename_label = tk.Label(
+        # 文件名显示 - 使用 Canvas 来实现多行或省略
+        self.filename_canvas = tk.Canvas(
             inner,
-            text="未选择",
-            font=get_font(11),
             bg=Theme.INPUT_BG,
-            fg=Theme.TEXT_MUTED,
-            anchor='w'
+            highlightthickness=0,
+            height=24
         )
-        self.filename_label.pack(side='left', fill='x', expand=True)
+        self.filename_canvas.pack(side='left', fill='both', expand=True)
+        
+        # 存储文件名标签
+        self.filename_labels = []
         
         # 分隔线
         tk.Frame(inner, bg=Theme.BORDER, width=1).pack(side='left', fill='y', padx=Theme.SPACE_MD)
@@ -1128,7 +1131,7 @@ class FileInputField(tk.Frame):
         self.action_btn.pack(side='right')
         
         # 绑定点击
-        for widget in [self.container, inner, self.filename_label, self.action_btn]:
+        for widget in [self.container, inner, self.action_btn]:
             widget.bind('<Button-1>', self._on_click)
             widget.configure(cursor='hand2')
         
@@ -1144,16 +1147,81 @@ class FileInputField(tk.Frame):
             self.command()
     
     def _update_display(self, *args):
-        path = self.variable.get()
-        if path:
-            # 显示文件名，路径过长则截断
-            filename = Path(path).name
-            if len(filename) > 40:
-                filename = filename[:37] + "..."
-            self.filename_label.configure(text=filename, fg=Theme.TEXT)
+        # 清除旧标签
+        for label in self.filename_labels:
+            label.destroy()
+        self.filename_labels.clear()
+        self.filename_canvas.delete('all')
+        
+        if self.multi_file and self.files_var:
+            files = self.files_var
+            if files:
+                # 显示多个文件
+                if len(files) == 1:
+                    filename = Path(files[0]).name
+                    if len(filename) > 40:
+                        filename = filename[:37] + "..."
+                    y = 5
+                    self.filename_labels.append(tk.Label(
+                        self.filename_canvas, text=filename,
+                        font=get_font(11), bg=Theme.INPUT_BG, fg=Theme.TEXT, anchor='w'
+                    ))
+                    self.filename_labels[-1].place(x=0, y=y)
+                else:
+                    # 显示文件名数量和前两个文件名
+                    display_text = f"已选择 {len(files)} 个文件"
+                    
+                    # 添加文件数量标签
+                    count_label = tk.Label(
+                        self.filename_canvas, text=display_text,
+                        font=get_font(11), bg=Theme.INPUT_BG, fg=Theme.TEXT, anchor='w'
+                    )
+                    count_label.place(x=0, y=3)
+                    self.filename_labels.append(count_label)
+                    
+                    # 显示前2个文件名
+                    for i, f in enumerate(files[:2]):
+                        fn = Path(f).name
+                        if len(fn) > 35:
+                            fn = fn[:32] + "..."
+                        y = 22 + i * 16
+                        self.filename_labels.append(tk.Label(
+                            self.filename_canvas, text=f"  • {fn}",
+                            font=get_font(9), bg=Theme.INPUT_BG, fg=Theme.TEXT_SECONDARY, anchor='w'
+                        ))
+                        self.filename_labels[-1].place(x=0, y=y)
+                    
+                    # 如果还有更多文件
+                    if len(files) > 2:
+                        more_label = tk.Label(
+                            self.filename_canvas, text=f"  ... 还有 {len(files) - 2} 个文件",
+                            font=get_font(9), bg=Theme.INPUT_BG, fg=Theme.TEXT_MUTED, anchor='w'
+                        )
+                        more_label.place(x=0, y=22 + 2 * 16)
+                        self.filename_labels.append(more_label)
+            else:
+                self.filename_labels.append(tk.Label(
+                    self.filename_canvas, text="点击选择文件（支持多选）",
+                    font=get_font(11), bg=Theme.INPUT_BG, fg=Theme.TEXT_MUTED, anchor='w'
+                ))
+                self.filename_labels[-1].place(x=0, y=5)
         else:
-            self.filename_label.configure(text="未选择", fg=Theme.TEXT_MUTED)
-
+            path = self.variable.get()
+            if path:
+                filename = Path(path).name
+                if len(filename) > 40:
+                    filename = filename[:37] + "..."
+                self.filename_labels.append(tk.Label(
+                    self.filename_canvas, text=filename,
+                    font=get_font(11), bg=Theme.INPUT_BG, fg=Theme.TEXT, anchor='w'
+                ))
+                self.filename_labels[-1].place(x=0, y=5)
+            else:
+                self.filename_labels.append(tk.Label(
+                    self.filename_canvas, text="未选择",
+                    font=get_font(11), bg=Theme.INPUT_BG, fg=Theme.TEXT_MUTED, anchor='w'
+                ))
+                self.filename_labels[-1].place(x=0, y=5)
 
 class SelectableCard(tk.Frame):
     """可选择的卡片 - 大图标版"""
@@ -1565,12 +1633,14 @@ class DocFormatApp:
         self.root.minsize(680, 750)
         self.root.configure(bg=Theme.BG)
         
-        # 变量
-        self.input_file = tk.StringVar()
+        # 变量 - 支持多文件
+        self.input_files = []  # 存储多个文件路径
         self.output_file = tk.StringVar()
         self.operation = tk.StringVar(value="smart")
         self.preset = tk.StringVar(value="official")
         
+        # 保留用于兼容的单文件变量
+        self.input_file = tk.StringVar()
         self.preset_cards = []
         
         self.create_widgets()
@@ -1616,12 +1686,15 @@ class DocFormatApp:
         file_section = tk.Frame(content, bg=Theme.BG)
         file_section.pack(fill='x', pady=(0, Theme.SPACE_LG))
         
+        # 输入文件字段 - 支持多文件
         self.input_field = FileInputField(
             file_section,
             label_text="输入",
-            placeholder="点击选择需要修改的文档",
+            placeholder="点击选择文件（支持多选）",
             variable=self.input_file,
-            command=self.browse_input
+            command=self.browse_input,
+            multi_file=True,
+            files_var=self.input_files
         )
         self.input_field.pack(fill='x', pady=(0, Theme.SPACE_SM))
         
@@ -1928,6 +2001,7 @@ class DocFormatApp:
         CustomSettingsDialog(self.root, on_save=on_save)
     
     def browse_input(self):
+        """浏览并选择多个输入文件"""
         is_windows = (os.name == 'nt')
         if is_windows:
             filetypes = [
@@ -1942,66 +2016,107 @@ class DocFormatApp:
                 ("Word 文档 (.docx)", "*.docx"),
                 ("所有文件", "*.*"),
             ]
-        filename = filedialog.askopenfilename(
-            title="选择Word文档",
+        
+        # 使用 askopenfilenames 支持多文件选择
+        filenames = filedialog.askopenfilenames(
+            title="选择Word文档（可多选）",
             filetypes=filetypes
         )
-        if filename:
-            self.input_file.set(filename)
-            p = Path(filename)
-            output_name = f"{p.stem}_processed{p.suffix}"
-            self.output_file.set(str(p.parent / output_name))
-            self.log_panel.log(f"已选择: {p.name}", 'info')
-            self.log_panel.log(f"输出格式已自动设置为: {p.suffix or '.docx'}", 'info')
+        
+        if filenames:
+            self.input_files = list(filenames)
+            # 设置第一个文件用于兼容
+            self.input_file.set(filenames[0])
+            
+            # 设置输出目录为第一个文件的目录
+            first_file = Path(filenames[0])
+            self.output_file.set(str(first_file.parent))
+            
+            if len(filenames) == 1:
+                self.log_panel.log(f"已选择: {Path(filenames[0]).name}", 'info')
+                self.log_panel.log(f"输出格式已自动设置为: {first_file.suffix or '.docx'}", 'info')
+            else:
+                self.log_panel.log(f"已选择 {len(filenames)} 个文件", 'info')
+                self.log_panel.log(f"输出目录: {first_file.parent}", 'info')
+            
             self.result_panel.reset()
     
     def browse_output(self):
-        is_windows = (os.name == 'nt')
-        if is_windows:
-            filetypes = [
-                ("所有支持格式", "*.docx *.doc *.wps"),   # ← 默认选中，空格分隔
-                ("Word 文档 (.docx)", "*.docx"),
-                ("Word 97-2003 (.doc)", "*.doc"),
-                ("WPS 文档 (.wps)", "*.wps"),
-            ]
+        """浏览并选择输出目录（支持多文件模式）"""
+        # 根据是否选择了多个文件来决定行为
+        if self.input_files and len(self.input_files) > 1:
+            # 多文件模式：选择输出目录
+            output_dir = filedialog.askdirectory(
+                title="选择输出目录",
+                initialdir=str(Path(self.input_files[0]).parent) if self.input_files else ""
+            )
+            if output_dir:
+                self.output_file.set(output_dir)
+                self.log_panel.log(f"输出目录: {output_dir}", 'info')
         else:
-            filetypes = [
-                ("Word 文档 (.docx)", "*.docx"),
-            ]
-        filename = filedialog.asksaveasfilename(
-            title="保存为",
-            defaultextension=".docx",
-            filetypes=filetypes
-        )
-        if filename:
-            self.output_file.set(filename)
+            # 单文件模式：选择保存文件
+            is_windows = (os.name == 'nt')
+            if is_windows:
+                filetypes = [
+                    ("所有支持格式", "*.docx *.doc *.wps"),
+                    ("Word 文档 (.docx)", "*.docx"),
+                    ("Word 97-2003 (.doc)", "*.doc"),
+                    ("WPS 文档 (.wps)", "*.wps"),
+                ]
+            else:
+                filetypes = [
+                    ("Word 文档 (.docx)", "*.docx"),
+                ]
+            
+            # 获取默认文件名
+            default_name = ""
+            if self.input_files:
+                input_p = Path(self.input_files[0])
+                default_name = f"{input_p.stem}_processed{input_p.suffix}"
+            
+            filename = filedialog.asksaveasfilename(
+                title="保存为",
+                defaultextension=".docx",
+                filetypes=filetypes,
+                initialfile=default_name
+            )
+            if filename:
+                self.output_file.set(filename)
     
     def run_operation(self):
-        input_path = self.input_file.get().strip()
-        output_path = self.output_file.get().strip()
+        """运行处理操作（支持多文件）"""
+        # 支持多文件模式
+        if self.input_files:
+            input_paths = self.input_files
+        else:
+            input_paths = [self.input_file.get().strip()]
+        
+        output_base = self.output_file.get().strip()
         mode = self.operation.get()
         
-        if not input_path:
+        if not input_paths or not input_paths[0]:
             messagebox.showerror("提示", "请先选择输入文件")
             return
         
-        if not os.path.exists(input_path):
-            messagebox.showerror("错误", "文件不存在")
-            return
-
-        # Linux: 仅支持 .docx，.doc/.wps 需在 Windows 上转换
-        if os.name != 'nt':
-            input_ext = Path(input_path).suffix.lower()
-            output_ext = Path(output_path).suffix.lower() if output_path else ''
-            if input_ext in ('.doc', '.wps') or output_ext in ('.doc', '.wps'):
-                messagebox.showerror(
-                    "不支持的格式",
-                    "当前系统仅支持 .docx 文件。\n.doc/.wps 文件请先在WPS/Word 另存为 .docx 后再处理。"
-                )
+        # 验证所有文件存在
+        for input_path in input_paths:
+            if not os.path.exists(input_path):
+                messagebox.showerror("错误", f"文件不存在: {input_path}")
                 return
         
-        if mode != 'analyze' and not output_path:
-            messagebox.showerror("提示", "请指定输出文件")
+        # Linux: 仅支持 .docx
+        if os.name != 'nt':
+            for input_path in input_paths:
+                input_ext = Path(input_path).suffix.lower()
+                if input_ext in ('.doc', '.wps'):
+                    messagebox.showerror(
+                        "不支持的格式",
+                        "当前系统仅支持 .docx 文件。\n.doc/.wps 文件请先在WPS/Word 另存为 .docx 后再处理。"
+                    )
+                    return
+        
+        if mode != 'analyze' and not output_base:
+            messagebox.showerror("提示", "请指定输出目录")
             return
         
         self.run_btn.configure(bg=Theme.TEXT_MUTED)
@@ -2010,18 +2125,104 @@ class DocFormatApp:
         
         thread = threading.Thread(
             target=self._do_operation,
-            args=(input_path, output_path, mode)
+            args=(input_paths, output_base, mode)
         )
         thread.start()
     
-    def _do_operation(self, input_path, output_path, mode):
-        temp_docx = None
-        temp_output_docx = None
+    def _do_operation(self, input_paths, output_base, mode):
+        """执行操作（支持多文件批量处理）"""
+        # input_paths: 文件路径列表
+        # output_base: 输出目录（对于多文件）或输出文件（对于单文件）
+        
+        if not isinstance(input_paths, list):
+            input_paths = [input_paths]
+        
+        total_files = len(input_paths)
+        processed_files = []
+        failed_files = []
+        
         try:
             from docx import Document
             
             self.log_panel.log(f"\n{'─' * 35}", 'info')
-            self.log_panel.log(f"开始处理: {Path(input_path).name}", 'info')
+            self.log_panel.log(f"开始处理 {total_files} 个文件...", 'info')
+            
+            for idx, input_path in enumerate(input_paths):
+                try:
+                    # 计算当前文件进度
+                    file_progress = int((idx / total_files) * 100)
+                    self._update_progress(file_progress, 100, f'处理第 {idx + 1}/{total_files} 个文件...')
+                    
+                    self.log_panel.log(f"\n--- 第 {idx + 1}/{total_files} 个: {Path(input_path).name} ---", 'info')
+                    
+                    # 为每个文件确定输出路径
+                    input_p = Path(input_path)
+                    
+                    # 判断 output_base 是目录还是文件
+                    if os.path.isdir(output_base):
+                        # 多文件模式：输出到指定目录
+                        output_dir = Path(output_base)
+                        output_path = str(output_dir / f"{input_p.stem}_processed{input_p.suffix}")
+                    else:
+                        # 单文件模式：使用原逻辑
+                        output_path = output_base
+                    
+                    # 处理单个文件
+                    self._process_single_file(input_path, output_path, mode)
+                    processed_files.append(output_path)
+                    
+                except Exception as e:
+                    self.log_panel.log(f"处理失败: {str(e)}", 'error')
+                    failed_files.append((input_path, str(e)))
+            
+            # 完成后更新UI
+            self._update_progress(100, 100, '完成')
+            
+            if failed_files:
+                self.log_panel.log(f"\n处理完成: 成功 {len(processed_files)} 个, 失败 {len(failed_files)} 个", 'warning')
+                error_summary = "\n".join([f"{Path(f).name}: {e}" for f, e in failed_files])
+                self.root.after(0, lambda: messagebox.showwarning(
+                    "部分文件处理失败",
+                    f"成功处理 {len(processed_files)} 个文件\n{len(failed_files)} 个文件失败:\n{error_summary}"
+                ))
+            else:
+                self.log_panel.log(f"\n全部完成! 成功处理 {len(processed_files)} 个文件", 'success')
+                
+                if len(processed_files) == 1:
+                    self.root.after(0, lambda: self.result_panel.show_success(
+                        "处理完成", Path(processed_files[0]).name
+                    ))
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        "完成", f"文件已保存至:\n{processed_files[0]}"
+                    ))
+                else:
+                    self.root.after(0, lambda: self.result_panel.show_success(
+                        f"批量处理完成", f"成功处理 {len(processed_files)} 个文件"
+                    ))
+                    
+                    # 显示输出目录
+                    output_dir = Path(output_base) if os.path.isdir(output_base) else Path(processed_files[0]).parent
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        "完成", f"成功处理 {len(processed_files)} 个文件\n输出目录:\n{output_dir}"
+                    ))
+        
+        except Exception as e:
+            error_msg = str(e)
+            self.log_panel.log(f"错误: {error_msg}", 'error')
+            import traceback
+            self.log_panel.log(traceback.format_exc(), 'error')
+            self.root.after(0, lambda msg=error_msg: messagebox.showerror("错误", msg))
+        
+        finally:
+            self.root.after(0, self._reset_btn)
+    
+    def _process_single_file(self, input_path, output_path, mode):
+        """处理单个文件"""
+        temp_docx = None
+        temp_output_docx = None
+        
+        try:
+            from docx import Document
             
             ext = Path(input_path).suffix.lower()
             if ext in ('.doc', '.wps'):
@@ -2098,7 +2299,6 @@ class DocFormatApp:
                         output_path_docx, output_path,
                         format=output_ext.lstrip('.')
                     )
-                    # convert_from_docx 可能回退到 .doc（当系统没有 WPS Office 时）
                     if actual_output and actual_output != output_path:
                         output_path = actual_output
                         self.log_panel.log(
@@ -2113,11 +2313,9 @@ class DocFormatApp:
                             "未检测到 WPS 或 Microsoft Office，请先安装后再试。"
                         ))
                         raise
-                    # 其他 RuntimeError：回退保存为 .docx
                     self._fallback_to_docx(output_path, output_path_docx)
                     output_path = str(Path(output_path).with_suffix('.docx'))
                 except Exception as e:
-                    # COM 错误等：回退保存为 .docx
                     self.log_panel.log(f"转换回 {output_ext} 失败: {e}", 'info')
                     self._fallback_to_docx(output_path, output_path_docx)
                     output_path = str(Path(output_path).with_suffix('.docx'))
@@ -2128,28 +2326,19 @@ class DocFormatApp:
                         except Exception:
                             pass
             
-            self._update_progress(100, 100, '完成')
-            self.log_panel.log("全部完成", 'success')
-            
-            if mode != 'analyze':
-                final_path = output_path  # 捕获到局部变量供 lambda 使用
-                self.root.after(0, lambda: messagebox.showinfo(
-                    "完成", f"文件已保存至:\n{final_path}"
-                ))
-        
-        except Exception as e:
-            error_msg = str(e)  # 先保存错误信息
-            self.log_panel.log(f"错误: {error_msg}", 'error')
-            import traceback
-            self.log_panel.log(traceback.format_exc(), 'error')
-            self.root.after(0, lambda msg=error_msg: messagebox.showerror("错误", msg))
+            self.log_panel.log(f"处理成功: {Path(output_path).name}", 'success')
         
         finally:
             if temp_docx and os.path.exists(temp_docx):
-                os.unlink(temp_docx)
+                try:
+                    os.unlink(temp_docx)
+                except:
+                    pass
             if temp_output_docx and os.path.exists(temp_output_docx):
-                os.unlink(temp_output_docx)
-            self.root.after(0, self._reset_btn)
+                try:
+                    os.unlink(temp_output_docx)
+                except:
+                    pass
     
     def _fallback_to_docx(self, original_output_path, docx_source_path):
         """转换回原格式失败时，将已处理好的 .docx 直接保存"""
