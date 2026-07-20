@@ -10,16 +10,19 @@ import threading
 import re
 import uuid
 import ctypes
+import time
+import webbrowser
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from pathlib import Path
 
 # 添加scripts目录到路径
-SCRIPT_DIR = Path(__file__).parent / "scripts"
+PROJECT_ROOT = Path(__file__).parent
+SCRIPT_DIR = PROJECT_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from scripts.analyzer import analyze_punctuation, analyze_numbering, analyze_paragraph_format, analyze_font
-from scripts.formatter import format_document, PRESETS
+from scripts.formatter import format_document, PRESETS, DEFAULT_PAGE_NUMBER_OFFSET_MM
 
 
 _DND_DISABLED_REASON = ""
@@ -111,7 +114,54 @@ except Exception as e:
     _DND_DISABLED_REASON = f"拖拽运行库不可用：{e}"
     _DND_AVAILABLE = False
 
-__version__ = '1.8.7'
+__version__ = '1.8.8'
+
+XIANYU_STORE_NAME = 'Mambo曼波'
+XIANYU_STORE_URL = 'https://p.goofish.com/p/hFODh4ju'
+PRO_INFO_URL = 'https://github.com/KaguraNanaga/docformat-gui/blob/main/PRO.md'
+COMMUNITY_NOTICE_MIN_INTERVAL_SECONDS = 15 * 24 * 60 * 60
+
+
+def _resource_path(*parts):
+    """Resolve an asset in source mode and in a PyInstaller bundle."""
+    base_dir = Path(getattr(sys, '_MEIPASS', PROJECT_ROOT))
+    return base_dir.joinpath(*parts)
+
+
+def _open_web_url(url):
+    """Open a user-initiated public webpage without making background requests."""
+    try:
+        webbrowser.open_new_tab(url)
+    except Exception:
+        pass
+
+
+def _is_pro_edition():
+    """Allow a separately packaged Pro build to suppress community-only notices."""
+    return os.environ.get('DOCFORMAT_EDITION', '').strip().lower() == 'pro'
+
+
+def should_show_community_notice(start_count, last_shown_at, now=None, is_pro=False):
+    """Return whether a low-frequency community-edition notice may be shown."""
+    if is_pro:
+        return False
+    try:
+        start_count = int(start_count)
+    except (TypeError, ValueError):
+        return False
+    scheduled = start_count in (1, 4, 10) or (
+        start_count > 10 and (start_count - 10) % 20 == 0
+    )
+    if not scheduled:
+        return False
+    if last_shown_at is None:
+        return True
+    try:
+        last_shown_at = float(last_shown_at)
+    except (TypeError, ValueError):
+        return True
+    now = time.time() if now is None else float(now)
+    return now - last_shown_at >= COMMUNITY_NOTICE_MIN_INTERVAL_SECONDS
 
 def _open_file(path):
     """跨平台打开文件"""
@@ -194,6 +244,84 @@ class Theme:
 def get_font(size=12, weight='normal'):
     """获取宋体字体"""
     return (Theme.FONT_SERIF[0], size, weight)
+
+
+class CommunityEditionDialog(tk.Toplevel):
+    """A local, dismissible notice describing the free community edition."""
+
+    def __init__(self, app):
+        super().__init__(app.root)
+        self.app = app
+        self.title('欢迎使用公文格式处理工具社区版')
+        self.configure(bg=Theme.BG)
+        self.resizable(False, False)
+        self.transient(app.root)
+
+        body = tk.Frame(self, bg=Theme.BG, padx=24, pady=20)
+        body.pack(fill='both', expand=True)
+        tk.Label(
+            body, text='欢迎使用公文格式处理工具社区版',
+            font=get_font(16, 'bold'), bg=Theme.BG, fg=Theme.TEXT,
+        ).pack(anchor='w')
+
+        message = (
+            '您正在使用由官方免费提供的开源社区版。\n'
+            '本版本无需购买激活码，官方不收取开源社区版软件费用。\n\n'
+            '如遇他人随意收费、删除版权声明或捆绑其他程序，请向交易平台举报。\n\n'
+            '需要更完整的功能？\n'
+            '公文格式处理工具Pro提供更完整的红头自定义、模板管理、PDF工具、'
+            '自动更新、优先问题修复和官方使用支持。\n\n'
+            'Pro版当前首发价：19.9元/台\n'
+            f'当前官方购买渠道：闲鱼（店铺名称：{XIANYU_STORE_NAME}）\n'
+            '抖音、小红书等渠道正在筹备中。最新官方渠道和Pro版本信息，'
+            '以GitHub仓库的PRO.md页面为准。'
+        )
+        tk.Label(
+            body, text=message, font=get_font(10), bg=Theme.BG, fg=Theme.TEXT,
+            justify='left', anchor='w', wraplength=560,
+        ).pack(anchor='w', pady=(12, 8))
+
+        qr_frame = tk.Frame(body, bg=Theme.CARD, padx=10, pady=10)
+        qr_frame.pack(fill='x', pady=(4, 12))
+        try:
+            image = tk.PhotoImage(file=str(_resource_path('assets', 'xianyu_qr.png')))
+            scale = max(1, int((image.width() + 179) // 180))
+            self._qr_image = image.subsample(scale, scale) if scale > 1 else image
+            tk.Label(qr_frame, image=self._qr_image, bg=Theme.CARD).pack(side='left')
+        except tk.TclError:
+            self._qr_image = None
+        tk.Label(
+            qr_frame,
+            text=f'扫码进入闲鱼店铺\n无法扫码时，请搜索店铺名称：{XIANYU_STORE_NAME}',
+            font=get_font(10), bg=Theme.CARD, fg=Theme.TEXT_SECONDARY,
+            justify='left', anchor='w', wraplength=320,
+        ).pack(side='left', padx=(14, 0), fill='x', expand=True)
+
+        action_row = tk.Frame(body, bg=Theme.BG)
+        action_row.pack(fill='x')
+        tk.Button(
+            action_row, text='继续使用社区版', command=self.destroy,
+            bg=Theme.PRIMARY, fg='white', activebackground=Theme.PRIMARY_HOVER,
+            activeforeground='white', relief='flat', padx=12, pady=7,
+        ).pack(side='left')
+        tk.Button(
+            action_row, text='了解Pro版', command=lambda: _open_web_url(PRO_INFO_URL),
+            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1,
+            padx=12, pady=7,
+        ).pack(side='left', padx=(8, 0))
+        tk.Button(
+            action_row, text='打开闲鱼店铺', command=lambda: _open_web_url(XIANYU_STORE_URL),
+            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1,
+            padx=12, pady=7,
+        ).pack(side='left', padx=(8, 0))
+        tk.Label(
+            body, text='升级Pro完全自愿，不影响社区版基础功能的正常使用。',
+            font=get_font(9), bg=Theme.BG, fg=Theme.TEXT_MUTED,
+        ).pack(anchor='w', pady=(10, 0))
+
+        self.update_idletasks()
+        self.geometry(f'+{max(0, (self.winfo_screenwidth() - self.winfo_reqwidth()) // 2)}'
+                      f'+{max(0, (self.winfo_screenheight() - self.winfo_reqheight()) // 2)}')
 
 
 # ===== 配置管理 =====
@@ -380,13 +508,14 @@ DEFAULT_CUSTOM_SETTINGS = {
     'page_number_size': 14,
     'page_number_style': 'dash',
     'page_number_position': 'outside',
-    'page_number_offset_mm': 7,
+    'page_number_offset_mm': DEFAULT_PAGE_NUMBER_OFFSET_MM,
     'replace_existing_page_number': True,
 }
 
 
 # v1.8.0: 配置文件 schema 版本
 CONFIG_SCHEMA_VERSION = 2
+PAGE_NUMBER_CONFIG_VERSION = 1
 
 # 内置只读预设的 id（与 PRESETS dict key 对应）
 BUILTIN_PRESET_IDS = ('official', 'academic', 'legal')
@@ -407,6 +536,7 @@ def _make_empty_config():
     return {
         'schema_version': CONFIG_SCHEMA_VERSION,
         'active_preset_id': None,   # 当前选中的自定义预设 id
+        'page_number_config_version': PAGE_NUMBER_CONFIG_VERSION,
         'presets': [_make_default_user_preset()],
     }
 
@@ -461,9 +591,26 @@ def _ensure_page_number_defaults(preset):
     preset.setdefault('page_number_size', 14)
     preset.setdefault('page_number_style', 'dash')
     preset.setdefault('page_number_position', 'outside')
-    preset.setdefault('page_number_offset_mm', 7)
+    preset.setdefault('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM)
     preset.setdefault('replace_existing_page_number', True)
     return preset
+
+
+def _ensure_page_number_config(config):
+    """Move the former 7mm default to the 10mm official-layout default once."""
+    if not isinstance(config, dict) or config.get('page_number_config_version') == PAGE_NUMBER_CONFIG_VERSION:
+        return False
+    for preset in config.get('presets', []):
+        if not isinstance(preset, dict):
+            continue
+        try:
+            was_old_default = abs(float(preset.get('page_number_offset_mm')) - 7.0) < 0.001
+        except (TypeError, ValueError):
+            was_old_default = preset.get('page_number_offset_mm') in (None, '')
+        if was_old_default:
+            preset['page_number_offset_mm'] = DEFAULT_PAGE_NUMBER_OFFSET_MM
+    config['page_number_config_version'] = PAGE_NUMBER_CONFIG_VERSION
+    return True
 
 
 def load_custom_settings():
@@ -483,6 +630,7 @@ def load_custom_settings():
         else:
             config = _migrate_legacy_config(data)
 
+    _ensure_page_number_config(config)
     presets = config.get('presets') or []
     if not presets:
         presets = [_make_default_user_preset()]
@@ -528,6 +676,7 @@ def save_custom_settings(config):
             }
         else:
             config['schema_version'] = CONFIG_SCHEMA_VERSION
+            _ensure_page_number_config(config)
             presets = config.get('presets') or []
             for preset in presets:
                 _ensure_page_number_defaults(preset)
@@ -744,7 +893,7 @@ class CustomSettingsDialog(tk.Toplevel):
             row_t, "加粗", self.title_bold_var
         ).pack(side='left', padx=(10, 0))
         
-        # --- 一级标题 / 二级标题 ---
+        # --- 各级标题 ---
         self._create_section(main, "🔤 各级标题字体", pad_x)
         heading_frame = tk.Frame(main, bg=Theme.BG)
         heading_frame.pack(fill='x', pady=(0, 12), padx=pad_x)
@@ -755,6 +904,10 @@ class CustomSettingsDialog(tk.Toplevel):
         self.h1_font_var = tk.StringVar()
         self._create_combobox(row_h1, self.h1_font_var, COMMON_FONTS_CN, width=16,
                               initial_value=self.settings.get('heading1', {}).get('font_cn', '黑体')).pack(side='left', padx=3)
+        tk.Label(row_h1, text="英数字体:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=7, anchor='e').pack(side='left', padx=(10, 0))
+        self.h1_font_en_var = tk.StringVar()
+        self._create_combobox(row_h1, self.h1_font_en_var, COMMON_FONTS_EN, width=16,
+                              initial_value=self.settings.get('heading1', {}).get('font_en', 'Times New Roman')).pack(side='left', padx=3)
         tk.Label(row_h1, text="字号:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=5, anchor='e').pack(side='left', padx=(10, 0))
         self.h1_size_var = tk.StringVar()
         self._create_combobox(row_h1, self.h1_size_var, [f"{name}({pt}pt)" for name, pt in FONT_SIZES], width=11,
@@ -771,6 +924,10 @@ class CustomSettingsDialog(tk.Toplevel):
         self.h2_font_var = tk.StringVar()
         self._create_combobox(row_h2, self.h2_font_var, COMMON_FONTS_CN, width=16,
                               initial_value=self.settings.get('heading2', {}).get('font_cn', '楷体_GB2312')).pack(side='left', padx=3)
+        tk.Label(row_h2, text="英数字体:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=7, anchor='e').pack(side='left', padx=(10, 0))
+        self.h2_font_en_var = tk.StringVar()
+        self._create_combobox(row_h2, self.h2_font_en_var, COMMON_FONTS_EN, width=16,
+                              initial_value=self.settings.get('heading2', {}).get('font_en', 'Times New Roman')).pack(side='left', padx=3)
         tk.Label(row_h2, text="字号:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=5, anchor='e').pack(side='left', padx=(10, 0))
         self.h2_size_var = tk.StringVar()
         self._create_combobox(row_h2, self.h2_size_var, [f"{name}({pt}pt)" for name, pt in FONT_SIZES], width=11,
@@ -780,6 +937,28 @@ class CustomSettingsDialog(tk.Toplevel):
         self._create_inline_toggle(
             row_h2, "加粗", self.h2_bold_var
         ).pack(side='left', padx=(10, 0))
+
+        row_h3 = tk.Frame(heading_frame, bg=Theme.BG)
+        row_h3.pack(fill='x', pady=2)
+        tk.Label(row_h3, text="三级(1.):", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=10, anchor='e').pack(side='left')
+        self.h3_font_var = tk.StringVar()
+        self._create_combobox(row_h3, self.h3_font_var, COMMON_FONTS_CN, width=16,
+                              initial_value=self.settings.get('heading3', {}).get('font_cn', '仿宋_GB2312')).pack(side='left', padx=3)
+        tk.Label(row_h3, text="英数字体:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=7, anchor='e').pack(side='left', padx=(10, 0))
+        self.h3_font_en_var = tk.StringVar()
+        self._create_combobox(row_h3, self.h3_font_en_var, COMMON_FONTS_EN, width=16,
+                              initial_value=self.settings.get('heading3', {}).get('font_en', 'Times New Roman')).pack(side='left', padx=3)
+
+        row_h4 = tk.Frame(heading_frame, bg=Theme.BG)
+        row_h4.pack(fill='x', pady=2)
+        tk.Label(row_h4, text="四级((1)):", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=10, anchor='e').pack(side='left')
+        self.h4_font_var = tk.StringVar()
+        self._create_combobox(row_h4, self.h4_font_var, COMMON_FONTS_CN, width=16,
+                              initial_value=self.settings.get('heading4', {}).get('font_cn', '仿宋_GB2312')).pack(side='left', padx=3)
+        tk.Label(row_h4, text="英数字体:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=7, anchor='e').pack(side='left', padx=(10, 0))
+        self.h4_font_en_var = tk.StringVar()
+        self._create_combobox(row_h4, self.h4_font_en_var, COMMON_FONTS_EN, width=16,
+                              initial_value=self.settings.get('heading4', {}).get('font_en', 'Times New Roman')).pack(side='left', padx=3)
         
         # --- 正文格式 ---
         self._create_section(main, "📖 正文格式", pad_x)
@@ -1027,7 +1206,7 @@ class CustomSettingsDialog(tk.Toplevel):
             bg=Theme.BG, fg=Theme.TEXT_SECONDARY
         ).pack(side='left', padx=(6, 4))
         self.page_number_offset_var = tk.StringVar(
-            value=str(self.settings.get('page_number_offset_mm', 7))
+            value=str(self.settings.get('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM))
         )
         tk.Entry(
             fd_row, textvariable=self.page_number_offset_var,
@@ -1674,13 +1853,19 @@ class CustomSettingsDialog(tk.Toplevel):
             self.title_line_spacing_var.set(str(s.get('title', {}).get('line_spacing', 28) or ''))
             self.title_bold_var.set(s.get('title', {}).get('bold', False))
             
-            # 一/二级标题
+            # 各级标题
             self.h1_font_var.set(s.get('heading1', {}).get('font_cn', '黑体'))
+            self.h1_font_en_var.set(s.get('heading1', {}).get('font_en', 'Times New Roman'))
             self._set_size_var(self.h1_size_var, s.get('heading1', {}).get('size', 16))
             self.h1_bold_var.set(s.get('heading1', {}).get('bold', False))
             self.h2_font_var.set(s.get('heading2', {}).get('font_cn', '楷体_GB2312'))
+            self.h2_font_en_var.set(s.get('heading2', {}).get('font_en', 'Times New Roman'))
             self._set_size_var(self.h2_size_var, s.get('heading2', {}).get('size', 16))
             self.h2_bold_var.set(s.get('heading2', {}).get('bold', False))
+            self.h3_font_var.set(s.get('heading3', {}).get('font_cn', '仿宋_GB2312'))
+            self.h3_font_en_var.set(s.get('heading3', {}).get('font_en', 'Times New Roman'))
+            self.h4_font_var.set(s.get('heading4', {}).get('font_cn', '仿宋_GB2312'))
+            self.h4_font_en_var.set(s.get('heading4', {}).get('font_en', 'Times New Roman'))
             
             # 正文
             self.body_font_var.set(s.get('body', {}).get('font_cn', '仿宋_GB2312'))
@@ -1728,7 +1913,7 @@ class CustomSettingsDialog(tk.Toplevel):
             )
             self.page_number_font_var.set(s.get('page_number_font', '宋体'))
             self._set_size_var(self.page_number_size_var, s.get('page_number_size', 14))
-            self.page_number_offset_var.set(str(s.get('page_number_offset_mm', 7)))
+            self.page_number_offset_var.set(str(s.get('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM)))
             self.replace_page_number_var.set(s.get('replace_existing_page_number', True))
             
             # 高级设置
@@ -1804,7 +1989,7 @@ class CustomSettingsDialog(tk.Toplevel):
         try:
             page_number_offset_mm = float(self.page_number_offset_var.get())
         except ValueError:
-            page_number_offset_mm = 7
+            page_number_offset_mm = DEFAULT_PAGE_NUMBER_OFFSET_MM
         page_number_offset_mm = max(0, min(30, page_number_offset_mm))
 
         # 构建基础设置 — 正文字体联动到多个元素
@@ -1822,22 +2007,22 @@ class CustomSettingsDialog(tk.Toplevel):
                 'line_spacing': body_ls, 'space_before': space_before, 'space_after': space_after
             },
             'heading1': {
-                'font_cn': self.h1_font_var.get(), 'font_en': global_font_en,
+                'font_cn': self.h1_font_var.get(), 'font_en': self.h1_font_en_var.get(),
                 'size': h1_size, 'bold': self.h1_bold_var.get(), 'align': 'left', 'indent': indent_pt,
                 'line_spacing': body_ls, 'space_before': space_before, 'space_after': space_after
             },
             'heading2': {
-                'font_cn': self.h2_font_var.get(), 'font_en': global_font_en,
+                'font_cn': self.h2_font_var.get(), 'font_en': self.h2_font_en_var.get(),
                 'size': h2_size, 'bold': self.h2_bold_var.get(), 'align': 'left', 'indent': indent_pt,
                 'line_spacing': body_ls, 'space_before': space_before, 'space_after': space_after
             },
             'heading3': {
-                'font_cn': body_font, 'font_en': global_font_en,
+                'font_cn': self.h3_font_var.get(), 'font_en': self.h3_font_en_var.get(),
                 'size': body_size, 'bold': body_bold, 'align': 'left', 'indent': indent_pt,
                 'line_spacing': body_ls, 'space_before': space_before, 'space_after': space_after
             },
             'heading4': {
-                'font_cn': body_font, 'font_en': global_font_en,
+                'font_cn': self.h4_font_var.get(), 'font_en': self.h4_font_en_var.get(),
                 'size': body_size, 'bold': body_bold, 'align': 'left', 'indent': indent_pt,
                 'line_spacing': body_ls, 'space_before': space_before, 'space_after': space_after
             },
@@ -3529,6 +3714,12 @@ class ResultPanel(tk.Frame):
                 anchor='w',
                 justify='left',
             )).pack(fill='x', anchor='w', pady=(Theme.SPACE_SM, 0))
+
+        tk.Label(
+            self.result_content,
+            text='当前为免费社区版。Pro版提供完整工具、持续更新和官方支持。',
+            font=get_font(9), bg=Theme.CARD, fg=Theme.TEXT_MUTED, anchor='w',
+        ).pack(fill='x', anchor='w', pady=(Theme.SPACE_SM, 0))
         
         self.result_card.pack(fill='x', pady=(Theme.SPACE_MD, 0))
     
@@ -3618,11 +3809,15 @@ class DocFormatApp:
         self.operation = tk.StringVar(value="smart")
         self.preset = tk.StringVar(value="official")
         self.input_files = []   # 多文件模式下存储路径列表
+        self._processing_active = False
+        self._community_notice_state = None
         
         self.preset_cards = []
         
         self.create_widgets()
         self.root._on_file_selected = self._on_file_selected
+        self._record_community_startup()
+        self.root.after(600, self._maybe_show_community_notice)
 
     def _set_initial_window_geometry(self):
         """让主窗口默认以更宽的工作区打开，同时兼容小屏和高 DPI。"""
@@ -3687,6 +3882,19 @@ class DocFormatApp:
             bg=Theme.BG,
             fg=Theme.TEXT
         ).pack(anchor='w', pady=(0, Theme.SPACE_XL))
+
+        pro_banner = tk.Frame(content, bg=Theme.PRIMARY_LIGHT, highlightbackground=Theme.PRIMARY_SOFT,
+                              highlightthickness=1, padx=Theme.SPACE_SM, pady=Theme.SPACE_SM)
+        pro_banner.pack(fill='x', pady=(0, Theme.SPACE_LG))
+        banner_label = tk.Label(
+            pro_banner,
+            text='免费开源社区版｜官方不收取社区版授权费｜Pro版首发19.9元｜了解详情',
+            font=get_font(10), bg=Theme.PRIMARY_LIGHT, fg=Theme.PRIMARY, cursor='hand2', anchor='w',
+        )
+        banner_label.pack(fill='x')
+        banner_label.bind('<Button-1>', lambda _event: _open_web_url(PRO_INFO_URL))
+        banner_label.bind('<Enter>', lambda _event: banner_label.configure(fg=Theme.PRIMARY_HOVER))
+        banner_label.bind('<Leave>', lambda _event: banner_label.configure(fg=Theme.PRIMARY))
         
         # ===== 2. 文件选择区 =====
         file_section = tk.Frame(content, bg=Theme.BG)
@@ -3986,6 +4194,38 @@ class DocFormatApp:
             "详见项目目录下 DISCLAIMER.md。"
         )
         messagebox.showinfo("关于", about_text)
+
+    def _record_community_startup(self):
+        """Persist only local display cadence; no network or usage analytics occur."""
+        if _is_pro_edition():
+            return
+        try:
+            config = load_custom_settings()
+            state = config.setdefault('community_notice', {})
+            state['start_count'] = max(0, int(state.get('start_count', 0))) + 1
+            self._community_notice_state = state
+            save_custom_settings(config)
+        except Exception as exc:
+            print(f'[提示] 无法保存社区版提示频率：{exc}')
+
+    def _maybe_show_community_notice(self):
+        """Show the optional community notice only when the UI is idle."""
+        if self._processing_active or _is_pro_edition():
+            return
+        state = self._community_notice_state or {}
+        now = time.time()
+        if not should_show_community_notice(
+            state.get('start_count', 0), state.get('last_shown_at'), now,
+        ):
+            return
+        state['last_shown_at'] = now
+        try:
+            config = load_custom_settings()
+            config['community_notice'] = state
+            save_custom_settings(config)
+        except Exception as exc:
+            print(f'[提示] 无法保存社区版提示时间：{exc}')
+        CommunityEditionDialog(self)
     
     def _show_progress(self):
         """显示进度条"""
@@ -4473,6 +4713,7 @@ class DocFormatApp:
 
         self.run_btn.configure(bg=Theme.TEXT_MUTED)
         self.run_label.configure(bg=Theme.TEXT_MUTED, text="处理中...")
+        self._processing_active = True
         self._show_progress()
 
         rev_mode = self.revision_mode_var.get() if hasattr(self, 'revision_mode_var') else False
@@ -4753,6 +4994,7 @@ class DocFormatApp:
             self.log_panel.log(f"回退保存也失败: {e}", 'error')
     
     def _reset_btn(self):
+        self._processing_active = False
         self.run_btn.configure(bg=Theme.PRIMARY)
         self.run_label.configure(bg=Theme.PRIMARY, text="开始处理")
         self._hide_progress()
@@ -4760,6 +5002,7 @@ class DocFormatApp:
     def _run_punctuation(self, input_path, output_path, quiet=False, space_mode='remove_all'):
         from docx import Document
         from scripts.punctuation import process_paragraph
+        from scripts.east_asian_typography import apply_chinese_line_break_rules
         
         doc = Document(input_path)
         changes = 0
@@ -4775,9 +5018,11 @@ class DocFormatApp:
                         if process_paragraph(para, space_mode=space_mode):
                             changes += 1
         
+        typography_count = apply_chinese_line_break_rules(doc)
         doc.save(output_path)
         if not quiet:
-            self.log_panel.log(f"修复了 {changes} 处标点", 'success')
+            suffix = f"，并应用中文换行规则到 {typography_count} 段" if typography_count else ""
+            self.log_panel.log(f"修复了 {changes} 处标点{suffix}", 'success')
     
     def _run_format(self, input_path, output_path, progress_callback=None, revision_mode=False):
         preset_name = self.preset.get()

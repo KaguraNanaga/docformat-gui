@@ -37,8 +37,13 @@ from docx.table import Table
 from docx.text.paragraph import Paragraph
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+try:
+    from scripts.east_asian_typography import apply_chinese_line_break_rules
+except ModuleNotFoundError:  # Support direct execution from scripts/.
+    from east_asian_typography import apply_chinese_line_break_rules
 
 logger = logging.getLogger('docformat.formatter')
+DEFAULT_PAGE_NUMBER_OFFSET_MM = 10
 
 # ===== 修复 PyInstaller 打包后 python-docx 找不到模板文件的问题 =====
 # python-docx 内部用 __file__ 相对路径去读 templates/default-footer.xml 等文件，
@@ -316,7 +321,7 @@ PRESETS = {
         'page_number_size': 14,
         'page_number_style': 'dash',
         'page_number_position': 'outside',
-        'page_number_offset_mm': 7,
+        'page_number_offset_mm': DEFAULT_PAGE_NUMBER_OFFSET_MM,
         'replace_existing_page_number': True,
         'page': {'top': 3.7, 'bottom': 3.5, 'left': 2.8, 'right': 2.6},
         # 主标题：二号方正小标宋简体，居中
@@ -791,6 +796,84 @@ def _build_text_context(doc):
     return all_texts, all_texts_idx_map
 
 
+def _xml_has_media(xml):
+    return any(marker in (xml or '') for marker in (
+        '<w:drawing', '<w:pict', '<w:object', '<mc:AlternateContent', '<v:shape',
+    ))
+
+
+def _run_has_media(run):
+    return _xml_has_media(getattr(run._r, 'xml', ''))
+
+
+def _paragraph_has_media(para):
+    return _xml_has_media(getattr(para._p, 'xml', ''))
+
+
+def _set_media_paragraph_single_spacing(para):
+    """Avoid clipping inline or floating media with exact text line spacing."""
+    if not _paragraph_has_media(para):
+        return False
+    para.paragraph_format.line_spacing = 1.0
+    para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    return True
+
+
+def _paragraph_has_page_break(para):
+    try:
+        return bool(para._p.xpath('.//w:br[@w:type="page"]'))
+    except Exception:
+        xml = getattr(para._p, 'xml', '')
+        return '<w:br' in xml and 'w:type="page"' in xml
+
+
+def _is_attachment_page_title(text):
+    value = re.sub(r'\s+', '', str(text or '').strip())
+    return re.fullmatch(r'附件(?:\d{1,3}|[一二三四五六七八九十]{1,3})?[：:]?', value) is not None
+
+
+def _looks_like_attachment_document_title(text, alignment=None):
+    value = str(text or '').strip()
+    if not value or len(value) > 80 or _is_attachment_page_title(value):
+        return False
+    if re.match(r'^(?:[一二三四五六七八九十]+、|（[^）]+）|\([^\)]+\)|\d+[.、])', value):
+        return False
+    if re.search(r'[。！？.!?；;：:]\s*$', value):
+        return False
+    return alignment == WD_ALIGN_PARAGRAPH.CENTER or len(value) >= 4
+
+
+def _attachment_document_title_ids(doc):
+    result = set()
+    paragraphs = list(doc.paragraphs)
+    for index, para in enumerate(paragraphs):
+        if not _is_attachment_page_title(para.text):
+            continue
+        for candidate in paragraphs[index + 1:]:
+            if _is_attachment_page_title(candidate.text):
+                break
+            if not candidate.text.strip() and not _paragraph_has_media(candidate):
+                continue
+            if _looks_like_attachment_document_title(
+                candidate.text, candidate.paragraph_format.alignment,
+            ):
+                result.add(id(candidate._p))
+            break
+    return result
+
+
+def _ensure_attachment_page_starts(doc):
+    """Start standalone attachment markers on a fresh page without duplicates."""
+    paragraphs = list(doc.paragraphs)
+    for index, para in enumerate(paragraphs):
+        if not _is_attachment_page_title(para.text) or index == 0:
+            continue
+        already_after_break = _paragraph_has_page_break(para)
+        already_after_break = already_after_break or _paragraph_has_page_break(paragraphs[index - 1])
+        if not already_after_break:
+            para.paragraph_format.page_break_before = True
+
+
 def detect_para_type(text, index, total, alignment, all_texts, all_texts_index=None, prev_para_type=None):
     """
     检测段落类型
@@ -909,11 +992,11 @@ def detect_para_type(text, index, total, alignment, all_texts, all_texts_index=N
                 return 'recipient'
     
     # ===== 附件行 =====
+    if _is_attachment_page_title(text):
+        return 'attachment'
     if re.match(r'^附件[：:]\s*', text):
         return 'attachment'
     if re.match(r'^附件\d*[：:．.\s]', text):
-        return 'attachment'
-    if re.match(r'^附件$', text):
         return 'attachment'
     
     # ===== 结束语 =====
@@ -1105,7 +1188,9 @@ def _format_empty_paragraphs(doc, structural_blank_ids, line_spacing_pt=28):
     for para in doc.paragraphs:
         if para.text.strip():
             continue
-        if _is_structural_blank(para):
+        if _paragraph_has_media(para):
+            _set_media_paragraph_single_spacing(para)
+        elif _is_structural_blank(para):
             _format_structural_blank_paragraph(para, line_spacing_pt)
         else:
             _compact_empty_paragraph(para)
@@ -1314,6 +1399,11 @@ def set_font(run, font_cn, font_en, size, bold=False, revision_mode=False):
     """
     设置字体，同时清除原有格式（斜体、下划线、颜色）
     """
+    # Do not alter runs which only carry media. In particular, never rebuild
+    # their run XML: it contains drawing/VML/OLE relationship nodes.
+    if _run_has_media(run) and not (run.text or '').strip():
+        return
+
     # 修订模式：记录改动前的 rPr
     if revision_mode:
         orig_rpr = deepcopy(run._r.rPr)
@@ -1391,17 +1481,18 @@ def format_paragraph(para, fmt, para_type, line_spacing_pt=28, first_line_bold=F
     pf.right_indent = Pt(0)
     
     # v1.8.1: attachment 类型走悬挂缩进，不走通用缩进逻辑
+    attachment_page_title = para_type == 'attachment' and _is_attachment_page_title(para.text)
     if para_type == 'attachment':
         font_size_pt = fmt.get('size', 16) or 16
-        # 左缩进 5 字符（首段折行后的对齐位置，后续段的左边界）
-        pf.left_indent = Pt(font_size_pt * 5)
-
-        # 是否是"首段"（含"附件"关键字）—— 走悬挂缩进
-        if '附件' in para.text:
-            pf.first_line_indent = Pt(-font_size_pt * 3)
-        else:
-            # 后续 "2.xxx" "3.xxx" —— 顶左缩进（first_line_indent = 0）
+        if attachment_page_title:
+            pf.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            pf.left_indent = Pt(0)
             pf.first_line_indent = Pt(0)
+        else:
+            # 左缩进 5 字符（首段折行后的对齐位置，后续段的左边界）
+            pf.left_indent = Pt(font_size_pt * 5)
+            # 是否是"首段"（含"附件"关键字）—— 走悬挂缩进
+            pf.first_line_indent = Pt(-font_size_pt * 3) if '附件' in para.text else Pt(0)
 
         try:
             pPr = para._p.get_or_add_pPr()
@@ -1456,13 +1547,17 @@ def format_paragraph(para, fmt, para_type, line_spacing_pt=28, first_line_bold=F
         fmt.get('space_before', 0),
         fmt.get('space_after', 0)
     )
+
+    has_media = _paragraph_has_media(para)
+    if has_media:
+        _set_media_paragraph_single_spacing(para)
     
     # 字体 - 支持首句加粗
     if first_line_bold and para_type == 'body':
         # 首句以中文句号“。”作为结束
         full_text = para.text
         first_sentence_end = full_text.find('。')
-        if first_sentence_end != -1:
+        if first_sentence_end != -1 and not has_media:
             split_idx = first_sentence_end + 1
             first_part = full_text[:split_idx]
             rest_part = full_text[split_idx:]
@@ -1483,7 +1578,7 @@ def format_paragraph(para, fmt, para_type, line_spacing_pt=28, first_line_bold=F
                 set_font(run, fmt['font_cn'], fmt['font_en'], fmt['size'], fmt.get('bold', False), revision_mode=revision_mode)
     else:
         # 正文里的序列词加粗前缀
-        if bold_serial and para_type == 'body':
+        if bold_serial and para_type == 'body' and not has_media:
             _SERIAL_PATTERNS = [
                 r'^([一二三四五六七八九十]{1,3}是)([：:、]?)',       # 一是、二是
                 r'^([一二三四五六七八九十]{1,3}要)([：:、]?)',       # 一要、二要
@@ -1522,7 +1617,7 @@ def add_page_number(
     font_size=14,
     style="dash",
     position="outside",
-    offset_from_text_mm=7,
+    offset_from_text_mm=DEFAULT_PAGE_NUMBER_OFFSET_MM,
     replace_existing=True,
 ):
     """按自定义样式添加页码。
@@ -1614,7 +1709,7 @@ def add_page_number(
             end_run._r.append(end)
             set_font(end_run, font_name, font_name, font_size, bold=False)
 
-        def _build_footer_line(footer, align, leading_space=False, trailing_space=False):
+        def _build_footer_line(footer, align):
             if footer.paragraphs:
                 para = footer.paragraphs[0]
             else:
@@ -1626,10 +1721,6 @@ def add_page_number(
             para.paragraph_format.first_line_indent = None
             para.paragraph_format.space_before = Pt(0)
             para.paragraph_format.space_after = Pt(0)
-
-            if leading_space:
-                run0 = para.add_run("　")
-                set_font(run0, font_name, font_name, font_size, bold=False)
 
             if style == "dash":
                 run = para.add_run("— ")
@@ -1651,22 +1742,11 @@ def add_page_number(
             else:
                 _add_field(para, " PAGE ")
 
-            if trailing_space:
-                run6 = para.add_run("　")
-                set_font(run6, font_name, font_name, font_size, bold=False)
-
         if position == "outside":
-            # 奇数页居右，空格在右；偶数页居左，空格在左。
-            _build_footer_line(
-                odd_footer, WD_ALIGN_PARAGRAPH.RIGHT, trailing_space=True
-            )
-            _build_footer_line(
-                even_footer, WD_ALIGN_PARAGRAPH.LEFT, leading_space=True
-            )
+            _build_footer_line(odd_footer, WD_ALIGN_PARAGRAPH.RIGHT)
+            _build_footer_line(even_footer, WD_ALIGN_PARAGRAPH.LEFT)
             if section.different_first_page_header_footer:
-                _build_footer_line(
-                    first_footer, WD_ALIGN_PARAGRAPH.RIGHT, trailing_space=True
-                )
+                _build_footer_line(first_footer, WD_ALIGN_PARAGRAPH.RIGHT)
         else:
             align = {
                 "left": WD_ALIGN_PARAGRAPH.LEFT,
@@ -1756,6 +1836,8 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
     # v1.7.2: 清理 styles.xml 里的 Autospacing 属性，避免内置样式覆盖直接属性
     _strip_autospacing_from_styles(doc)
     structural_blank_ids = _ensure_structural_blank_lines(doc, body_line_spacing)
+    _ensure_attachment_page_starts(doc)
+    attachment_document_title_ids = _attachment_document_title_ids(doc)
     total_paras = len(doc.paragraphs)
     all_texts, all_texts_idx_map = _build_text_context(doc)
     
@@ -1773,18 +1855,20 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
     for i, para in enumerate(doc.paragraphs):
         text = para.text.strip()
         if not text:
-            if _is_structural_blank(para):
+            if _paragraph_has_media(para):
+                _set_media_paragraph_single_spacing(para)
+            elif _is_structural_blank(para):
                 _format_structural_blank_paragraph(para, body_line_spacing)
             else:
                 _compact_empty_paragraph(para)
             continue
         
-        para_type = detect_para_type(
-            text, i, total_paras, 
+        para_type = 'title' if id(para._p) in attachment_document_title_ids else detect_para_type(
+            text, i, total_paras,
             para.paragraph_format.alignment,
             all_texts,
             all_texts_index=all_texts_idx_map.get(i),
-            prev_para_type=prev_para_type
+            prev_para_type=prev_para_type,
         )
         
         if para_type == 'date':
@@ -2000,11 +2084,13 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
             font_size=preset.get('page_number_size', 14),
             style=preset.get('page_number_style', 'dash'),
             position=preset.get('page_number_position', 'outside'),
-            offset_from_text_mm=preset.get('page_number_offset_mm', 7),
+            offset_from_text_mm=preset.get('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM),
             replace_existing=preset.get('replace_existing_page_number', True),
         )
     else:
         logger.info('5. Skipping page numbers...')
+
+    apply_chinese_line_break_rules(doc)
     
     # 保存
     _progress(82, 100, '保存文件...')
