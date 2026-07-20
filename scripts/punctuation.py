@@ -8,6 +8,10 @@
 import re
 import sys
 from docx import Document
+try:
+    from scripts.east_asian_typography import apply_chinese_line_break_rules
+except ModuleNotFoundError:  # Support direct execution from scripts/.
+    from east_asian_typography import apply_chinese_line_break_rules
 
 # 中文标点（使用Unicode转义确保正确）
 LEFT_DOUBLE_QUOTE = '\u201c'   # " 左双引号
@@ -358,6 +362,8 @@ def process_document(input_path, output_path):
 
     if table_changes > 0:
         print(f"  Tables: {table_changes} cells fixed")
+
+    apply_chinese_line_break_rules(doc)
 
     print()
     print(f"Total: {changes} paragraphs + {table_changes} table cells fixed")

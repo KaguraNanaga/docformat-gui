@@ -19,7 +19,7 @@ SCRIPT_DIR = Path(__file__).parent / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from scripts.analyzer import analyze_punctuation, analyze_numbering, analyze_paragraph_format, analyze_font
-from scripts.formatter import format_document, PRESETS
+from scripts.formatter import format_document, PRESETS, DEFAULT_PAGE_NUMBER_OFFSET_MM
 
 
 _DND_DISABLED_REASON = ""
@@ -380,13 +380,14 @@ DEFAULT_CUSTOM_SETTINGS = {
     'page_number_size': 14,
     'page_number_style': 'dash',
     'page_number_position': 'outside',
-    'page_number_offset_mm': 7,
+    'page_number_offset_mm': DEFAULT_PAGE_NUMBER_OFFSET_MM,
     'replace_existing_page_number': True,
 }
 
 
 # v1.8.0: 配置文件 schema 版本
 CONFIG_SCHEMA_VERSION = 2
+PAGE_NUMBER_CONFIG_VERSION = 1
 
 # 内置只读预设的 id（与 PRESETS dict key 对应）
 BUILTIN_PRESET_IDS = ('official', 'academic', 'legal')
@@ -407,6 +408,7 @@ def _make_empty_config():
     return {
         'schema_version': CONFIG_SCHEMA_VERSION,
         'active_preset_id': None,   # 当前选中的自定义预设 id
+        'page_number_config_version': PAGE_NUMBER_CONFIG_VERSION,
         'presets': [_make_default_user_preset()],
     }
 
@@ -461,9 +463,26 @@ def _ensure_page_number_defaults(preset):
     preset.setdefault('page_number_size', 14)
     preset.setdefault('page_number_style', 'dash')
     preset.setdefault('page_number_position', 'outside')
-    preset.setdefault('page_number_offset_mm', 7)
+    preset.setdefault('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM)
     preset.setdefault('replace_existing_page_number', True)
     return preset
+
+
+def _ensure_page_number_config(config):
+    """Move the former 7mm default to the 10mm official-layout default once."""
+    if not isinstance(config, dict) or config.get('page_number_config_version') == PAGE_NUMBER_CONFIG_VERSION:
+        return False
+    for preset in config.get('presets', []):
+        if not isinstance(preset, dict):
+            continue
+        try:
+            was_old_default = abs(float(preset.get('page_number_offset_mm')) - 7.0) < 0.001
+        except (TypeError, ValueError):
+            was_old_default = preset.get('page_number_offset_mm') in (None, '')
+        if was_old_default:
+            preset['page_number_offset_mm'] = DEFAULT_PAGE_NUMBER_OFFSET_MM
+    config['page_number_config_version'] = PAGE_NUMBER_CONFIG_VERSION
+    return True
 
 
 def load_custom_settings():
@@ -483,6 +502,7 @@ def load_custom_settings():
         else:
             config = _migrate_legacy_config(data)
 
+    _ensure_page_number_config(config)
     presets = config.get('presets') or []
     if not presets:
         presets = [_make_default_user_preset()]
@@ -528,6 +548,7 @@ def save_custom_settings(config):
             }
         else:
             config['schema_version'] = CONFIG_SCHEMA_VERSION
+            _ensure_page_number_config(config)
             presets = config.get('presets') or []
             for preset in presets:
                 _ensure_page_number_defaults(preset)
@@ -744,7 +765,7 @@ class CustomSettingsDialog(tk.Toplevel):
             row_t, "加粗", self.title_bold_var
         ).pack(side='left', padx=(10, 0))
         
-        # --- 一级标题 / 二级标题 ---
+        # --- 各级标题 ---
         self._create_section(main, "🔤 各级标题字体", pad_x)
         heading_frame = tk.Frame(main, bg=Theme.BG)
         heading_frame.pack(fill='x', pady=(0, 12), padx=pad_x)
@@ -755,6 +776,10 @@ class CustomSettingsDialog(tk.Toplevel):
         self.h1_font_var = tk.StringVar()
         self._create_combobox(row_h1, self.h1_font_var, COMMON_FONTS_CN, width=16,
                               initial_value=self.settings.get('heading1', {}).get('font_cn', '黑体')).pack(side='left', padx=3)
+        tk.Label(row_h1, text="英数字体:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=7, anchor='e').pack(side='left', padx=(10, 0))
+        self.h1_font_en_var = tk.StringVar()
+        self._create_combobox(row_h1, self.h1_font_en_var, COMMON_FONTS_EN, width=16,
+                              initial_value=self.settings.get('heading1', {}).get('font_en', 'Times New Roman')).pack(side='left', padx=3)
         tk.Label(row_h1, text="字号:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=5, anchor='e').pack(side='left', padx=(10, 0))
         self.h1_size_var = tk.StringVar()
         self._create_combobox(row_h1, self.h1_size_var, [f"{name}({pt}pt)" for name, pt in FONT_SIZES], width=11,
@@ -771,6 +796,10 @@ class CustomSettingsDialog(tk.Toplevel):
         self.h2_font_var = tk.StringVar()
         self._create_combobox(row_h2, self.h2_font_var, COMMON_FONTS_CN, width=16,
                               initial_value=self.settings.get('heading2', {}).get('font_cn', '楷体_GB2312')).pack(side='left', padx=3)
+        tk.Label(row_h2, text="英数字体:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=7, anchor='e').pack(side='left', padx=(10, 0))
+        self.h2_font_en_var = tk.StringVar()
+        self._create_combobox(row_h2, self.h2_font_en_var, COMMON_FONTS_EN, width=16,
+                              initial_value=self.settings.get('heading2', {}).get('font_en', 'Times New Roman')).pack(side='left', padx=3)
         tk.Label(row_h2, text="字号:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=5, anchor='e').pack(side='left', padx=(10, 0))
         self.h2_size_var = tk.StringVar()
         self._create_combobox(row_h2, self.h2_size_var, [f"{name}({pt}pt)" for name, pt in FONT_SIZES], width=11,
@@ -780,6 +809,28 @@ class CustomSettingsDialog(tk.Toplevel):
         self._create_inline_toggle(
             row_h2, "加粗", self.h2_bold_var
         ).pack(side='left', padx=(10, 0))
+
+        row_h3 = tk.Frame(heading_frame, bg=Theme.BG)
+        row_h3.pack(fill='x', pady=2)
+        tk.Label(row_h3, text="三级(1.):", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=10, anchor='e').pack(side='left')
+        self.h3_font_var = tk.StringVar()
+        self._create_combobox(row_h3, self.h3_font_var, COMMON_FONTS_CN, width=16,
+                              initial_value=self.settings.get('heading3', {}).get('font_cn', '仿宋_GB2312')).pack(side='left', padx=3)
+        tk.Label(row_h3, text="英数字体:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=7, anchor='e').pack(side='left', padx=(10, 0))
+        self.h3_font_en_var = tk.StringVar()
+        self._create_combobox(row_h3, self.h3_font_en_var, COMMON_FONTS_EN, width=16,
+                              initial_value=self.settings.get('heading3', {}).get('font_en', 'Times New Roman')).pack(side='left', padx=3)
+
+        row_h4 = tk.Frame(heading_frame, bg=Theme.BG)
+        row_h4.pack(fill='x', pady=2)
+        tk.Label(row_h4, text="四级((1)):", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=10, anchor='e').pack(side='left')
+        self.h4_font_var = tk.StringVar()
+        self._create_combobox(row_h4, self.h4_font_var, COMMON_FONTS_CN, width=16,
+                              initial_value=self.settings.get('heading4', {}).get('font_cn', '仿宋_GB2312')).pack(side='left', padx=3)
+        tk.Label(row_h4, text="英数字体:", font=get_font(11), bg=Theme.BG, fg=Theme.TEXT_SECONDARY, width=7, anchor='e').pack(side='left', padx=(10, 0))
+        self.h4_font_en_var = tk.StringVar()
+        self._create_combobox(row_h4, self.h4_font_en_var, COMMON_FONTS_EN, width=16,
+                              initial_value=self.settings.get('heading4', {}).get('font_en', 'Times New Roman')).pack(side='left', padx=3)
         
         # --- 正文格式 ---
         self._create_section(main, "📖 正文格式", pad_x)
@@ -1027,7 +1078,7 @@ class CustomSettingsDialog(tk.Toplevel):
             bg=Theme.BG, fg=Theme.TEXT_SECONDARY
         ).pack(side='left', padx=(6, 4))
         self.page_number_offset_var = tk.StringVar(
-            value=str(self.settings.get('page_number_offset_mm', 7))
+            value=str(self.settings.get('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM))
         )
         tk.Entry(
             fd_row, textvariable=self.page_number_offset_var,
@@ -1674,13 +1725,19 @@ class CustomSettingsDialog(tk.Toplevel):
             self.title_line_spacing_var.set(str(s.get('title', {}).get('line_spacing', 28) or ''))
             self.title_bold_var.set(s.get('title', {}).get('bold', False))
             
-            # 一/二级标题
+            # 各级标题
             self.h1_font_var.set(s.get('heading1', {}).get('font_cn', '黑体'))
+            self.h1_font_en_var.set(s.get('heading1', {}).get('font_en', 'Times New Roman'))
             self._set_size_var(self.h1_size_var, s.get('heading1', {}).get('size', 16))
             self.h1_bold_var.set(s.get('heading1', {}).get('bold', False))
             self.h2_font_var.set(s.get('heading2', {}).get('font_cn', '楷体_GB2312'))
+            self.h2_font_en_var.set(s.get('heading2', {}).get('font_en', 'Times New Roman'))
             self._set_size_var(self.h2_size_var, s.get('heading2', {}).get('size', 16))
             self.h2_bold_var.set(s.get('heading2', {}).get('bold', False))
+            self.h3_font_var.set(s.get('heading3', {}).get('font_cn', '仿宋_GB2312'))
+            self.h3_font_en_var.set(s.get('heading3', {}).get('font_en', 'Times New Roman'))
+            self.h4_font_var.set(s.get('heading4', {}).get('font_cn', '仿宋_GB2312'))
+            self.h4_font_en_var.set(s.get('heading4', {}).get('font_en', 'Times New Roman'))
             
             # 正文
             self.body_font_var.set(s.get('body', {}).get('font_cn', '仿宋_GB2312'))
@@ -1728,7 +1785,7 @@ class CustomSettingsDialog(tk.Toplevel):
             )
             self.page_number_font_var.set(s.get('page_number_font', '宋体'))
             self._set_size_var(self.page_number_size_var, s.get('page_number_size', 14))
-            self.page_number_offset_var.set(str(s.get('page_number_offset_mm', 7)))
+            self.page_number_offset_var.set(str(s.get('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM)))
             self.replace_page_number_var.set(s.get('replace_existing_page_number', True))
             
             # 高级设置
@@ -1804,7 +1861,7 @@ class CustomSettingsDialog(tk.Toplevel):
         try:
             page_number_offset_mm = float(self.page_number_offset_var.get())
         except ValueError:
-            page_number_offset_mm = 7
+            page_number_offset_mm = DEFAULT_PAGE_NUMBER_OFFSET_MM
         page_number_offset_mm = max(0, min(30, page_number_offset_mm))
 
         # 构建基础设置 — 正文字体联动到多个元素
@@ -1822,22 +1879,22 @@ class CustomSettingsDialog(tk.Toplevel):
                 'line_spacing': body_ls, 'space_before': space_before, 'space_after': space_after
             },
             'heading1': {
-                'font_cn': self.h1_font_var.get(), 'font_en': global_font_en,
+                'font_cn': self.h1_font_var.get(), 'font_en': self.h1_font_en_var.get(),
                 'size': h1_size, 'bold': self.h1_bold_var.get(), 'align': 'left', 'indent': indent_pt,
                 'line_spacing': body_ls, 'space_before': space_before, 'space_after': space_after
             },
             'heading2': {
-                'font_cn': self.h2_font_var.get(), 'font_en': global_font_en,
+                'font_cn': self.h2_font_var.get(), 'font_en': self.h2_font_en_var.get(),
                 'size': h2_size, 'bold': self.h2_bold_var.get(), 'align': 'left', 'indent': indent_pt,
                 'line_spacing': body_ls, 'space_before': space_before, 'space_after': space_after
             },
             'heading3': {
-                'font_cn': body_font, 'font_en': global_font_en,
+                'font_cn': self.h3_font_var.get(), 'font_en': self.h3_font_en_var.get(),
                 'size': body_size, 'bold': body_bold, 'align': 'left', 'indent': indent_pt,
                 'line_spacing': body_ls, 'space_before': space_before, 'space_after': space_after
             },
             'heading4': {
-                'font_cn': body_font, 'font_en': global_font_en,
+                'font_cn': self.h4_font_var.get(), 'font_en': self.h4_font_en_var.get(),
                 'size': body_size, 'bold': body_bold, 'align': 'left', 'indent': indent_pt,
                 'line_spacing': body_ls, 'space_before': space_before, 'space_after': space_after
             },
@@ -4760,6 +4817,7 @@ class DocFormatApp:
     def _run_punctuation(self, input_path, output_path, quiet=False, space_mode='remove_all'):
         from docx import Document
         from scripts.punctuation import process_paragraph
+        from scripts.east_asian_typography import apply_chinese_line_break_rules
         
         doc = Document(input_path)
         changes = 0
@@ -4775,9 +4833,11 @@ class DocFormatApp:
                         if process_paragraph(para, space_mode=space_mode):
                             changes += 1
         
+        typography_count = apply_chinese_line_break_rules(doc)
         doc.save(output_path)
         if not quiet:
-            self.log_panel.log(f"修复了 {changes} 处标点", 'success')
+            suffix = f"，并应用中文换行规则到 {typography_count} 段" if typography_count else ""
+            self.log_panel.log(f"修复了 {changes} 处标点{suffix}", 'success')
     
     def _run_format(self, input_path, output_path, progress_callback=None, revision_mode=False):
         preset_name = self.preset.get()

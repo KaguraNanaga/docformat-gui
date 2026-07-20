@@ -18,9 +18,19 @@ def test_official_margins_form_156_by_225_mm_text_area():
     page = PRESETS["official"]["page"]
     assert round(21.0 - page["left"] - page["right"], 1) == 15.6
     assert round(29.7 - page["top"] - page["bottom"], 1) == 22.5
+    assert PRESETS["official"]["page_number_offset_mm"] == 10
 
 
-def test_official_page_number_uses_text_area_offset_and_correct_outside_spaces():
+def test_old_7mm_default_is_migrated_to_10mm_once():
+    import docformat_gui as gui
+
+    config = {"presets": [{"page_number_offset_mm": 7}]}
+    assert gui._ensure_page_number_config(config) is True
+    assert config["presets"][0]["page_number_offset_mm"] == 10
+    assert gui._ensure_page_number_config(config) is False
+
+
+def test_official_page_number_uses_text_area_offset_without_hidden_padding():
     doc = Document()
     section = doc.sections[0]
     section.bottom_margin = Cm(3.5)
@@ -29,20 +39,24 @@ def test_official_page_number_uses_text_area_offset_and_correct_outside_spaces()
         doc,
         style="dash",
         position="outside",
-        offset_from_text_mm=7,
+        offset_from_text_mm=10,
     )
 
-    assert abs(section.footer_distance.cm - 2.8) < 0.02
+    assert abs(section.footer_distance.cm - 2.5) < 0.02
     odd = section.footer.paragraphs[0]
     even = section.even_page_footer.paragraphs[0]
     assert odd.alignment == WD_ALIGN_PARAGRAPH.RIGHT
     assert even.alignment == WD_ALIGN_PARAGRAPH.LEFT
-    assert _footer_text(section.footer).endswith(" —　")
-    assert _footer_text(section.even_page_footer).startswith("　— ")
+    assert "　" not in _footer_text(section.footer)
+    assert "　" not in _footer_text(section.even_page_footer)
 
 
 def test_page_number_styles_support_plain_text_and_total_pages():
     doc = Document()
+    add_page_number(doc, style="plain", position="center")
+    assert "PAGE" in doc.sections[0].footer._element.xml
+    assert "—" not in _footer_text(doc.sections[0].footer)
+
     add_page_number(doc, style="page_text", position="center")
     assert "第 " in _footer_text(doc.sections[0].footer)
     assert " 页" in _footer_text(doc.sections[0].footer)
