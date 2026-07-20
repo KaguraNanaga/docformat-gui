@@ -10,12 +10,15 @@ import threading
 import re
 import uuid
 import ctypes
+import time
+import webbrowser
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from pathlib import Path
 
 # 添加scripts目录到路径
-SCRIPT_DIR = Path(__file__).parent / "scripts"
+PROJECT_ROOT = Path(__file__).parent
+SCRIPT_DIR = PROJECT_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from scripts.analyzer import analyze_punctuation, analyze_numbering, analyze_paragraph_format, analyze_font
@@ -113,6 +116,53 @@ except Exception as e:
 
 __version__ = '1.8.7'
 
+XIANYU_STORE_NAME = 'Mambo曼波'
+XIANYU_STORE_URL = 'https://p.goofish.com/p/hFODh4ju'
+PRO_INFO_URL = 'https://github.com/KaguraNanaga/docformat-gui/blob/main/PRO.md'
+COMMUNITY_NOTICE_MIN_INTERVAL_SECONDS = 15 * 24 * 60 * 60
+
+
+def _resource_path(*parts):
+    """Resolve an asset in source mode and in a PyInstaller bundle."""
+    base_dir = Path(getattr(sys, '_MEIPASS', PROJECT_ROOT))
+    return base_dir.joinpath(*parts)
+
+
+def _open_web_url(url):
+    """Open a user-initiated public webpage without making background requests."""
+    try:
+        webbrowser.open_new_tab(url)
+    except Exception:
+        pass
+
+
+def _is_pro_edition():
+    """Allow a separately packaged Pro build to suppress community-only notices."""
+    return os.environ.get('DOCFORMAT_EDITION', '').strip().lower() == 'pro'
+
+
+def should_show_community_notice(start_count, last_shown_at, now=None, is_pro=False):
+    """Return whether a low-frequency community-edition notice may be shown."""
+    if is_pro:
+        return False
+    try:
+        start_count = int(start_count)
+    except (TypeError, ValueError):
+        return False
+    scheduled = start_count in (1, 4, 10) or (
+        start_count > 10 and (start_count - 10) % 20 == 0
+    )
+    if not scheduled:
+        return False
+    if last_shown_at is None:
+        return True
+    try:
+        last_shown_at = float(last_shown_at)
+    except (TypeError, ValueError):
+        return True
+    now = time.time() if now is None else float(now)
+    return now - last_shown_at >= COMMUNITY_NOTICE_MIN_INTERVAL_SECONDS
+
 def _open_file(path):
     """跨平台打开文件"""
     try:
@@ -194,6 +244,84 @@ class Theme:
 def get_font(size=12, weight='normal'):
     """获取宋体字体"""
     return (Theme.FONT_SERIF[0], size, weight)
+
+
+class CommunityEditionDialog(tk.Toplevel):
+    """A local, dismissible notice describing the free community edition."""
+
+    def __init__(self, app):
+        super().__init__(app.root)
+        self.app = app
+        self.title('欢迎使用公文格式处理工具社区版')
+        self.configure(bg=Theme.BG)
+        self.resizable(False, False)
+        self.transient(app.root)
+
+        body = tk.Frame(self, bg=Theme.BG, padx=24, pady=20)
+        body.pack(fill='both', expand=True)
+        tk.Label(
+            body, text='欢迎使用公文格式处理工具社区版',
+            font=get_font(16, 'bold'), bg=Theme.BG, fg=Theme.TEXT,
+        ).pack(anchor='w')
+
+        message = (
+            '您正在使用由官方免费提供的开源社区版。\n'
+            '本版本无需购买激活码，官方不收取开源社区版软件费用。\n\n'
+            '如遇他人随意收费、删除版权声明或捆绑其他程序，请向交易平台举报。\n\n'
+            '需要更完整的功能？\n'
+            '公文格式处理工具Pro提供更完整的红头自定义、模板管理、PDF工具、'
+            '自动更新、优先问题修复和官方使用支持。\n\n'
+            'Pro版当前首发价：19.9元/台\n'
+            f'当前官方购买渠道：闲鱼（店铺名称：{XIANYU_STORE_NAME}）\n'
+            '抖音、小红书等渠道正在筹备中。最新官方渠道和Pro版本信息，'
+            '以GitHub仓库的PRO.md页面为准。'
+        )
+        tk.Label(
+            body, text=message, font=get_font(10), bg=Theme.BG, fg=Theme.TEXT,
+            justify='left', anchor='w', wraplength=560,
+        ).pack(anchor='w', pady=(12, 8))
+
+        qr_frame = tk.Frame(body, bg=Theme.CARD, padx=10, pady=10)
+        qr_frame.pack(fill='x', pady=(4, 12))
+        try:
+            image = tk.PhotoImage(file=str(_resource_path('assets', 'xianyu_qr.png')))
+            scale = max(1, int((image.width() + 179) // 180))
+            self._qr_image = image.subsample(scale, scale) if scale > 1 else image
+            tk.Label(qr_frame, image=self._qr_image, bg=Theme.CARD).pack(side='left')
+        except tk.TclError:
+            self._qr_image = None
+        tk.Label(
+            qr_frame,
+            text=f'扫码进入闲鱼店铺\n无法扫码时，请搜索店铺名称：{XIANYU_STORE_NAME}',
+            font=get_font(10), bg=Theme.CARD, fg=Theme.TEXT_SECONDARY,
+            justify='left', anchor='w', wraplength=320,
+        ).pack(side='left', padx=(14, 0), fill='x', expand=True)
+
+        action_row = tk.Frame(body, bg=Theme.BG)
+        action_row.pack(fill='x')
+        tk.Button(
+            action_row, text='继续使用社区版', command=self.destroy,
+            bg=Theme.PRIMARY, fg='white', activebackground=Theme.PRIMARY_HOVER,
+            activeforeground='white', relief='flat', padx=12, pady=7,
+        ).pack(side='left')
+        tk.Button(
+            action_row, text='了解Pro版', command=lambda: _open_web_url(PRO_INFO_URL),
+            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1,
+            padx=12, pady=7,
+        ).pack(side='left', padx=(8, 0))
+        tk.Button(
+            action_row, text='打开闲鱼店铺', command=lambda: _open_web_url(XIANYU_STORE_URL),
+            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1,
+            padx=12, pady=7,
+        ).pack(side='left', padx=(8, 0))
+        tk.Label(
+            body, text='升级Pro完全自愿，不影响社区版基础功能的正常使用。',
+            font=get_font(9), bg=Theme.BG, fg=Theme.TEXT_MUTED,
+        ).pack(anchor='w', pady=(10, 0))
+
+        self.update_idletasks()
+        self.geometry(f'+{max(0, (self.winfo_screenwidth() - self.winfo_reqwidth()) // 2)}'
+                      f'+{max(0, (self.winfo_screenheight() - self.winfo_reqheight()) // 2)}')
 
 
 # ===== 配置管理 =====
@@ -3586,6 +3714,12 @@ class ResultPanel(tk.Frame):
                 anchor='w',
                 justify='left',
             )).pack(fill='x', anchor='w', pady=(Theme.SPACE_SM, 0))
+
+        tk.Label(
+            self.result_content,
+            text='当前为免费社区版。Pro版提供完整工具、持续更新和官方支持。',
+            font=get_font(9), bg=Theme.CARD, fg=Theme.TEXT_MUTED, anchor='w',
+        ).pack(fill='x', anchor='w', pady=(Theme.SPACE_SM, 0))
         
         self.result_card.pack(fill='x', pady=(Theme.SPACE_MD, 0))
     
@@ -3675,11 +3809,15 @@ class DocFormatApp:
         self.operation = tk.StringVar(value="smart")
         self.preset = tk.StringVar(value="official")
         self.input_files = []   # 多文件模式下存储路径列表
+        self._processing_active = False
+        self._community_notice_state = None
         
         self.preset_cards = []
         
         self.create_widgets()
         self.root._on_file_selected = self._on_file_selected
+        self._record_community_startup()
+        self.root.after(600, self._maybe_show_community_notice)
 
     def _set_initial_window_geometry(self):
         """让主窗口默认以更宽的工作区打开，同时兼容小屏和高 DPI。"""
@@ -3744,6 +3882,19 @@ class DocFormatApp:
             bg=Theme.BG,
             fg=Theme.TEXT
         ).pack(anchor='w', pady=(0, Theme.SPACE_XL))
+
+        pro_banner = tk.Frame(content, bg=Theme.PRIMARY_LIGHT, highlightbackground=Theme.PRIMARY_SOFT,
+                              highlightthickness=1, padx=Theme.SPACE_SM, pady=Theme.SPACE_SM)
+        pro_banner.pack(fill='x', pady=(0, Theme.SPACE_LG))
+        banner_label = tk.Label(
+            pro_banner,
+            text='免费开源社区版｜官方不收取社区版授权费｜Pro版首发19.9元｜了解详情',
+            font=get_font(10), bg=Theme.PRIMARY_LIGHT, fg=Theme.PRIMARY, cursor='hand2', anchor='w',
+        )
+        banner_label.pack(fill='x')
+        banner_label.bind('<Button-1>', lambda _event: _open_web_url(PRO_INFO_URL))
+        banner_label.bind('<Enter>', lambda _event: banner_label.configure(fg=Theme.PRIMARY_HOVER))
+        banner_label.bind('<Leave>', lambda _event: banner_label.configure(fg=Theme.PRIMARY))
         
         # ===== 2. 文件选择区 =====
         file_section = tk.Frame(content, bg=Theme.BG)
@@ -4043,6 +4194,38 @@ class DocFormatApp:
             "详见项目目录下 DISCLAIMER.md。"
         )
         messagebox.showinfo("关于", about_text)
+
+    def _record_community_startup(self):
+        """Persist only local display cadence; no network or usage analytics occur."""
+        if _is_pro_edition():
+            return
+        try:
+            config = load_custom_settings()
+            state = config.setdefault('community_notice', {})
+            state['start_count'] = max(0, int(state.get('start_count', 0))) + 1
+            self._community_notice_state = state
+            save_custom_settings(config)
+        except Exception as exc:
+            print(f'[提示] 无法保存社区版提示频率：{exc}')
+
+    def _maybe_show_community_notice(self):
+        """Show the optional community notice only when the UI is idle."""
+        if self._processing_active or _is_pro_edition():
+            return
+        state = self._community_notice_state or {}
+        now = time.time()
+        if not should_show_community_notice(
+            state.get('start_count', 0), state.get('last_shown_at'), now,
+        ):
+            return
+        state['last_shown_at'] = now
+        try:
+            config = load_custom_settings()
+            config['community_notice'] = state
+            save_custom_settings(config)
+        except Exception as exc:
+            print(f'[提示] 无法保存社区版提示时间：{exc}')
+        CommunityEditionDialog(self)
     
     def _show_progress(self):
         """显示进度条"""
@@ -4530,6 +4713,7 @@ class DocFormatApp:
 
         self.run_btn.configure(bg=Theme.TEXT_MUTED)
         self.run_label.configure(bg=Theme.TEXT_MUTED, text="处理中...")
+        self._processing_active = True
         self._show_progress()
 
         rev_mode = self.revision_mode_var.get() if hasattr(self, 'revision_mode_var') else False
@@ -4810,6 +4994,7 @@ class DocFormatApp:
             self.log_panel.log(f"回退保存也失败: {e}", 'error')
     
     def _reset_btn(self):
+        self._processing_active = False
         self.run_btn.configure(bg=Theme.PRIMARY)
         self.run_label.configure(bg=Theme.PRIMARY, text="开始处理")
         self._hide_progress()

@@ -460,6 +460,7 @@ def build_windows():
         "--clean",
         # 添加数据文件
         "--add-data=scripts;scripts",
+        "--add-data=assets/xianyu_qr.png;assets",
         # python-docx 模板文件（页眉页脚等必需）
         f"--add-data={docx_tpl};docx/templates" if docx_tpl else "--collect-data=docx",
         "--hidden-import=docx",
@@ -505,6 +506,7 @@ def build_linux():
         f"--name={output_name}",
         "--clean",
         "--add-data=scripts:scripts",
+        "--add-data=assets/xianyu_qr.png:assets",
         # python-docx 模板文件
         f"--add-data={docx_tpl}:docx/templates" if docx_tpl else "--collect-data=docx",
         "--hidden-import=docx",
@@ -555,6 +557,7 @@ def build_macos():
         "--osx-bundle-identifier=com.kagurananaga.docformat-gui",
         # macOS 路径分隔符与 Linux 相同
         "--add-data=scripts:scripts",
+        "--add-data=assets/xianyu_qr.png:assets",
         # python-docx 模板文件
         f"--add-data={docx_tpl}:docx/templates" if docx_tpl else "--collect-data=docx",
         "--hidden-import=docx",
