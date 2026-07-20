@@ -65,9 +65,9 @@ This tool is more than just a simple format painter. It deeply analyzes and fixe
 > * Supports `.docx`, `.doc`, and `.wps` format documents.
 
 ### Linux Users (Kylin / UOS)
-1. **Click to Download**: [**Document_Format_GUI_Linux**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_linux)
-2. Grant execute permission: `chmod +x docformat_linux`
-3. Double-click to run or execute: `./docformat_linux`
+1. **Click to Download**: [**Linux x86_64 AppImage**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_linux_amd64.AppImage) or [**Linux ARM64 AppImage**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_linux_aarch64.AppImage)
+2. Grant execute permission: `chmod +x docformat_linux_amd64.AppImage`
+3. Double-click to run or execute: `./docformat_linux_amd64.AppImage`
 
 > **Note**:
 > * The Linux build supports `.docx` only. Convert `.doc/.wps` to `.docx` on Windows first.

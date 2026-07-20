@@ -142,16 +142,16 @@ uname -m
 
 | 输出结果 | 适用硬件 | 下载链接 |
 |---|---|---|
-| `x86_64` | Intel / AMD / 兆芯 / 海光 | [**docformat_linux**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_linux) |
-| `aarch64` | 飞腾 / 鲲鹏 / 树莓派 | [**docformat_linux_arm64**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_linux_arm64) |
+| `x86_64` | Intel / AMD / 兆芯 / 海光 | [**docformat_linux_amd64.AppImage**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_linux_amd64.AppImage) |
+| `aarch64` | 飞腾 / 鲲鹏 / 树莓派 | [**docformat_linux_aarch64.AppImage**](https://github.com/KaguraNanaga/docformat-gui/releases/latest/download/docformat_linux_aarch64.AppImage) |
 
 **第二步：赋予执行权限并运行**
 ```bash
-chmod +x docformat_linux          # ARM64 用户替换为 docformat_linux_arm64
-./docformat_linux
+chmod +x docformat_linux_amd64.AppImage   # ARM64 用户替换为 docformat_linux_aarch64.AppImage
+./docformat_linux_amd64.AppImage
 ```
 
-> 如果双击无反应，请在文件管理器中右键 → 属性 → 勾选"允许作为程序执行"
+> 如果双击无反应，请在文件管理器中右键 → 属性 → 勾选"允许作为程序执行"。部分系统缺少 FUSE 时，可运行 `./docformat_linux_amd64.AppImage --appimage-extract-and-run`，或改用源码运行方式。
 
 #### 方式二：源码运行（binary 报错时的备选）
 
