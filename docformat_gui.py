@@ -114,7 +114,7 @@ except Exception as e:
     _DND_DISABLED_REASON = f"拖拽运行库不可用：{e}"
     _DND_AVAILABLE = False
 
-__version__ = '1.8.7'
+__version__ = '1.8.8'
 
 XIANYU_STORE_NAME = 'Mambo曼波'
 XIANYU_STORE_URL = 'https://p.goofish.com/p/hFODh4ju'

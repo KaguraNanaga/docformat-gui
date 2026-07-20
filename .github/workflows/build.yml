@@ -96,6 +96,7 @@ jobs:
           DOCX_TEMPLATES=$(python3 -c "import docx, os; print(os.path.join(os.path.dirname(docx.__file__), 'templates'))")
           pyinstaller --onefile --name=docformat_linux \
             --add-data "scripts:scripts" \
+            --add-data "assets/xianyu_qr.png:assets" \
             --add-data "${DOCX_TEMPLATES}:docx/templates" \
             --hidden-import=docx --hidden-import=lxml \
             docformat_gui.py
@@ -132,6 +133,7 @@ jobs:
           DOCX_TEMPLATES=$(python3 -c "import docx, os; print(os.path.join(os.path.dirname(docx.__file__), 'templates'))")
           pyinstaller --onefile --name=docformat_linux_arm64 \
             --add-data "scripts:scripts" \
+            --add-data "assets/xianyu_qr.png:assets" \
             --add-data "${DOCX_TEMPLATES}:docx/templates" \
             --hidden-import=docx --hidden-import=lxml \
             docformat_gui.py
@@ -323,6 +325,9 @@ jobs:
             - ✅ 格式诊断（仅分析，不修改）
             - ✅ 标点符号修复
             - ✅ 支持 GB/T 公文标准
+            - ✅ 中文禁则、图片附件保护和标题中英文字体设置
+
+            社区版免费开源，无需购买激活码。Pro版本与官方购买渠道以仓库 [PRO.md](https://github.com/${{ github.repository }}/blob/${{ steps.get_version.outputs.VERSION }}/PRO.md) 为准。
             
           files: |
             dist/docformat_windows.exe

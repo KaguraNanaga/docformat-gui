@@ -32,7 +32,7 @@ _configure_console_encoding()
 # 配置
 APP_NAME = "公文格式处理工具"
 APP_NAME_EN = "DocFormatter"
-VERSION = "1.8.7"
+VERSION = "1.8.8"
 MAIN_SCRIPT = "docformat_gui.py"
 MACOS_APP_BUNDLE_NAME = os.environ.get("MACOS_APP_BUNDLE_NAME", "公文格式处理助手").strip()
 
@@ -633,6 +633,8 @@ def create_release_notes():
 - ✅ 格式诊断
 - ✅ 标点符号修复
 - ✅ 支持 GB/T 公文标准、学术论文、法律文书格式
+- ✅ 中文禁则、图片附件保护和可自定义标题中英文字体
+- ✅ 免费社区版官方渠道提示；Pro 信息以仓库 PRO.md 为准
 
 ## 系统要求
 
