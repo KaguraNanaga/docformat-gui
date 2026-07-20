@@ -81,7 +81,7 @@ jobs:
           dnf install -y \
             gcc gcc-c++ make \
             python39 python39-pip python39-tkinter python39-devel \
-            squashfs-tools wget git findutils \
+            squashfs-tools wget git findutils file \
             glibc-langpack-zh
           python3.9 -m pip install --upgrade pip
 
@@ -128,7 +128,7 @@ jobs:
           dnf install -y \
             gcc gcc-c++ make \
             python39 python39-pip python39-tkinter python39-devel \
-            squashfs-tools wget git findutils \
+            squashfs-tools wget git findutils file \
             glibc-langpack-zh
           python3.9 -m pip install --upgrade pip
 
