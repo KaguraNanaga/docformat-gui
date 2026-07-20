@@ -11,6 +11,7 @@ def test_linux_workflow_builds_appimages_with_the_community_notice_asset():
 
     assert workflow.count("image: almalinux:8") == 2
     assert workflow.count('assets/xianyu_qr.png:assets') >= 2
+    assert workflow.count("squashfs-tools wget git findutils file") == 2
     assert "packaging/appimage/build-appimage.sh" in workflow
     assert "docformat_linux_amd64.AppImage" in workflow
     assert "docformat_linux_aarch64.AppImage" in workflow
