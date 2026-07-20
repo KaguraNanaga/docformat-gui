@@ -71,78 +71,112 @@ jobs:
           path: dist/docformat_windows_win7.exe
 
   build-linux:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: almalinux:8
     steps:
+      - name: Install system dependencies
+        run: |
+          dnf install -y epel-release
+          dnf install -y \
+            gcc gcc-c++ make \
+            python39 python39-pip python39-tkinter python39-devel \
+            squashfs-tools file wget git findutils \
+            glibc-langpack-zh
+          python3.9 -m pip install --upgrade pip
+
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Cache pip packages
+        uses: actions/cache@v4
         with:
-          python-version: '3.11'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-tk
+          path: ~/.cache/pip
+          key: linux-amd64-pip-${{ hashFiles('requirements.txt') }}
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller python-docx
+          python3.9 -m pip install pyinstaller python-docx
 
       - name: Build Linux executable
         run: |
-          DOCX_TEMPLATES=$(python3 -c "import docx, os; print(os.path.join(os.path.dirname(docx.__file__), 'templates'))")
+          export LC_ALL=zh_CN.UTF-8
+          DOCX_TEMPLATES=$(python3.9 -c "import docx, os; print(os.path.join(os.path.dirname(docx.__file__), 'templates'))")
           pyinstaller --onefile --name=docformat_linux \
             --add-data "scripts:scripts" \
             --add-data "assets/xianyu_qr.png:assets" \
             --add-data "${DOCX_TEMPLATES}:docx/templates" \
+            --collect-data=docx \
             --hidden-import=docx --hidden-import=lxml \
             docformat_gui.py
+
+      - name: Build AppImage (amd64)
+        run: |
+          chmod +x packaging/appimage/build-appimage.sh
+          packaging/appimage/build-appimage.sh \
+            dist/docformat_linux \
+            assets/icon.png \
+            docformat_linux_amd64
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-build
-          path: dist/docformat_linux
+          path: dist/docformat_linux_amd64.AppImage
 
   build-linux-arm64:
     runs-on: ubuntu-22.04-arm
+    container:
+      image: almalinux:8
     steps:
+      - name: Install system dependencies
+        run: |
+          dnf install -y epel-release
+          dnf install -y \
+            gcc gcc-c++ make \
+            python39 python39-pip python39-tkinter python39-devel \
+            squashfs-tools file wget git findutils \
+            glibc-langpack-zh
+          python3.9 -m pip install --upgrade pip
+
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Cache pip packages
+        uses: actions/cache@v4
         with:
-          python-version: '3.11'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-tk
+          path: ~/.cache/pip
+          key: linux-arm64-pip-${{ hashFiles('requirements.txt') }}
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller python-docx
+          python3.9 -m pip install pyinstaller python-docx
 
       - name: Build Linux ARM64 executable
         run: |
-          DOCX_TEMPLATES=$(python3 -c "import docx, os; print(os.path.join(os.path.dirname(docx.__file__), 'templates'))")
-          pyinstaller --onefile --name=docformat_linux_arm64 \
+          export LC_ALL=zh_CN.UTF-8
+          DOCX_TEMPLATES=$(python3.9 -c "import docx, os; print(os.path.join(os.path.dirname(docx.__file__), 'templates'))")
+          pyinstaller --onefile --name=docformat_linux \
             --add-data "scripts:scripts" \
             --add-data "assets/xianyu_qr.png:assets" \
             --add-data "${DOCX_TEMPLATES}:docx/templates" \
+            --collect-data=docx \
             --hidden-import=docx --hidden-import=lxml \
             docformat_gui.py
+
+      - name: Build AppImage (aarch64)
+        run: |
+          chmod +x packaging/appimage/build-appimage.sh
+          packaging/appimage/build-appimage.sh \
+            dist/docformat_linux \
+            assets/icon.png \
+            docformat_linux_aarch64
 
       - name: Upload Linux ARM64 artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-arm64-build
-          path: dist/docformat_linux_arm64
+          path: dist/docformat_linux_aarch64.AppImage
 
   build-macos:
     name: build-macos (${{ matrix.arch_label }})
@@ -285,19 +319,19 @@ jobs:
             > ⚠️ Win7 用户请下载此版本，需要 Windows 7 SP1 及以上。如果闪退请安装 [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
             
             ## Linux 版下载（国产系统 / 麒麟 / 统信 UOS）
-            
+
             先查询架构：在终端运行 `uname -m`
-            
-            输出 `x86_64`：下载 x86_64 版本  
-            输出 `aarch64` 或 `arm64`：下载 ARM64 版本
-            
-            x86_64（Intel/AMD）：[docformat_linux](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/docformat_linux)  
-            ARM64（飞腾/鲲鹏/龙芯3A5000+）：[docformat_linux_arm64](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/docformat_linux_arm64)
-            
+
+            输出 `x86_64`：下载 amd64 版本
+            输出 `aarch64` 或 `arm64`：下载 aarch64 版本
+
+            x86_64（Intel/AMD）：[docformat_linux_amd64.AppImage](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/docformat_linux_amd64.AppImage)
+            ARM64（飞腾/鲲鹏/龙芯3A5000+）：[docformat_linux_aarch64.AppImage](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/docformat_linux_aarch64.AppImage)
+
             运行步骤：
-            1. `chmod +x docformat_linux`（或 `chmod +x docformat_linux_arm64`）
-            2. `./docformat_linux`
-            3. 如果运行报错，请使用 [install.sh 脚本方式](https://github.com/${{ github.repository }}#国产系统用户麒麟--统信-uos)
+            1. `chmod +x docformat_linux_amd64.AppImage`（或 `docformat_linux_aarch64.AppImage`）
+            2. `./docformat_linux_amd64.AppImage`
+            3. 如果 AppImage 无法运行，请使用 [install.sh 脚本方式](https://github.com/${{ github.repository }}#国产系统用户麒麟--统信-uos)
             
             仅支持 `.docx` 文件。
             
@@ -332,8 +366,8 @@ jobs:
           files: |
             dist/docformat_windows.exe
             dist/docformat_windows_win7.exe
-            dist/docformat_linux
-            dist/docformat_linux_arm64
+            dist/docformat_linux_amd64.AppImage
+            dist/docformat_linux_aarch64.AppImage
             dist/docformat_macos_intel.dmg
             dist/docformat_macos_apple_silicon.dmg
           draft: false
