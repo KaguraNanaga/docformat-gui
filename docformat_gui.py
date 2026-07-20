@@ -114,12 +114,34 @@ except Exception as e:
     _DND_DISABLED_REASON = f"拖拽运行库不可用：{e}"
     _DND_AVAILABLE = False
 
-__version__ = '1.8.8'
+__version__ = '1.8.8.1'
 
 XIANYU_STORE_NAME = 'Mambo曼波'
 XIANYU_STORE_URL = 'https://p.goofish.com/p/hFODh4ju'
 PRO_INFO_URL = 'https://github.com/KaguraNanaga/docformat-gui/blob/main/PRO.md'
-COMMUNITY_NOTICE_MIN_INTERVAL_SECONDS = 15 * 24 * 60 * 60
+COMMUNITY_NOTICE_SCHEDULE = (1, 3, 7, 10, 20)
+COMMUNITY_NOTICE_SCHEDULE_VERSION = 4
+COMMUNITY_NOTICE_TEXT = (
+    '本工具完全免费开源，不收取任何费用；如从网络付费购买，请举报商家并要求退款。'
+    'Pro 版已发布，提供红头文件支持、错别字和病句检查、自定义 AI 接入、智能 Agent 助手、模板管理、PDF 工具、自动更新、优先问题修复和使用支持。'
+)
+# 与仓库根目录 PRO.md 保持同步。此文案随社区版程序一同打包，不依赖网络或外部网页。
+EMBEDDED_PRO_INFO_TEXT = (
+    '公文格式处理工具 Pro\n\n'
+    '您当前使用的是开源社区版（GitHub）。\n'
+    '本开源社区版软件完全免费开源，不收取任何费用，无需购买激活码。\n\n'
+    '如有人出售本工具、删除版权声明或捆绑其他程序，请向交易平台举报并要求退款。\n\n'
+    'Pro 是独立的付费版本，提供更完整的红头文件支持与自定义、错别字和病句检查、自定义 AI 接入、智能 Agent 助手、模板管理、PDF 工具、自动更新、优先问题修复和使用支持。'
+    '\n\n'
+    '购买渠道公示\n\n'
+    f'闲鱼店铺：{XIANYU_STORE_NAME}\n'
+    f'闲鱼链接：{XIANYU_STORE_URL}\n\n'
+    'Pro 当前首发价：19.9 元/台。\n\n'
+    '其他渠道\n\n'
+    '抖音商城：筹备中\n'
+    '小红书店铺：筹备中\n\n'
+    '最新渠道与 Pro 信息以 GitHub 仓库的 PRO.md 为准。升级 Pro 完全自愿，不影响开源社区版（GitHub）的基础功能使用。'
+)
 
 
 def _resource_path(*parts):
@@ -141,27 +163,15 @@ def _is_pro_edition():
     return os.environ.get('DOCFORMAT_EDITION', '').strip().lower() == 'pro'
 
 
-def should_show_community_notice(start_count, last_shown_at, now=None, is_pro=False):
-    """Return whether a low-frequency community-edition notice may be shown."""
+def should_show_community_notice(start_count, last_shown_at=None, now=None, is_pro=False):
+    """Return whether a community-edition notice is due on this launch."""
     if is_pro:
         return False
     try:
         start_count = int(start_count)
     except (TypeError, ValueError):
         return False
-    scheduled = start_count in (1, 4, 10) or (
-        start_count > 10 and (start_count - 10) % 20 == 0
-    )
-    if not scheduled:
-        return False
-    if last_shown_at is None:
-        return True
-    try:
-        last_shown_at = float(last_shown_at)
-    except (TypeError, ValueError):
-        return True
-    now = time.time() if now is None else float(now)
-    return now - last_shown_at >= COMMUNITY_NOTICE_MIN_INTERVAL_SECONDS
+    return start_count in COMMUNITY_NOTICE_SCHEDULE
 
 def _open_file(path):
     """跨平台打开文件"""
@@ -176,6 +186,27 @@ def _open_file(path):
             subprocess.Popen(['xdg-open', path])
     except Exception:
         pass
+
+
+def _add_xianyu_qr_panel(parent, image_owner):
+    """Add the bundled Xianyu QR code and retain its Tk image reference."""
+    qr_frame = tk.Frame(parent, bg=Theme.CARD, padx=10, pady=10)
+    qr_frame.pack(fill='x', pady=(4, 12))
+    try:
+        image = tk.PhotoImage(master=image_owner, file=str(_resource_path('assets', 'xianyu_qr.png')))
+        scale = max(1, int((image.width() + 179) // 180))
+        qr_image = image.subsample(scale, scale) if scale > 1 else image
+        image_owner._xianyu_qr_image = qr_image
+        tk.Label(qr_frame, image=qr_image, bg=Theme.CARD).pack(side='left')
+    except tk.TclError as exc:
+        # QR code is optional visual guidance; keep a clear text fallback if a platform cannot render it.
+        print(f'[提示] 闲鱼二维码加载失败：{exc}')
+    tk.Label(
+        qr_frame,
+        text=f'扫码进入闲鱼店铺\n无法扫码时，请搜索店铺名称：{XIANYU_STORE_NAME}',
+        font=get_font(10), bg=Theme.CARD, fg=Theme.TEXT_SECONDARY,
+        justify='left', anchor='w', wraplength=320,
+    ).pack(side='left', padx=(14, 0), fill='x', expand=True)
 
 
 # ===== 设计系统 =====
@@ -246,13 +277,109 @@ def get_font(size=12, weight='normal'):
     return (Theme.FONT_SERIF[0], size, weight)
 
 
+class ProInfoDialog(tk.Toplevel):
+    """Show the embedded Pro information without requiring a browser."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title('Pro 版信息')
+        self.configure(bg=Theme.BG)
+        self.resizable(False, False)
+        self.transient(parent)
+
+        body = tk.Frame(self, bg=Theme.BG, padx=24, pady=20)
+        body.pack(fill='both', expand=True)
+        tk.Label(
+            body, text='Pro 版信息', font=get_font(16, 'bold'),
+            bg=Theme.BG, fg=Theme.TEXT,
+        ).pack(anchor='w')
+        tk.Label(
+            body, text=EMBEDDED_PRO_INFO_TEXT, font=get_font(10),
+            bg=Theme.BG, fg=Theme.TEXT, justify='left', anchor='w', wraplength=580,
+        ).pack(anchor='w', pady=(12, 10))
+        _add_xianyu_qr_panel(body, self)
+
+        actions = tk.Frame(body, bg=Theme.BG)
+        actions.pack(fill='x')
+        tk.Button(
+            actions, text='打开闲鱼店铺', command=lambda: _open_web_url(XIANYU_STORE_URL),
+            bg=Theme.CARD, fg=Theme.PRIMARY, activebackground=Theme.PRIMARY_LIGHT,
+            activeforeground=Theme.PRIMARY_HOVER, relief='solid', bd=1, padx=12, pady=7,
+        ).pack(side='left')
+        tk.Button(
+            actions, text='查看 GitHub PRO.md', command=lambda: _open_web_url(PRO_INFO_URL),
+            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1, padx=12, pady=7,
+        ).pack(side='left', padx=(8, 0))
+        tk.Button(
+            actions, text='关闭', command=self.destroy,
+            bg=Theme.CARD, fg=Theme.TEXT_SECONDARY, relief='solid', bd=1, padx=12, pady=7,
+        ).pack(side='right')
+
+        _fit_dialog_to_screen(self, parent, 660, 700, 520, 500)
+
+
+class CommunityNoticeTicker(tk.Frame):
+    """A compact, continuously moving community-edition disclosure."""
+
+    def __init__(self, parent, show_pro_info):
+        super().__init__(parent, bg=Theme.CARD_ALT, highlightbackground=Theme.BORDER,
+                         highlightthickness=1, height=34)
+        self.pack_propagate(False)
+        self._show_pro_info = show_pro_info
+        self._message = COMMUNITY_NOTICE_TEXT
+        self._text_id = None
+
+        badge = tk.Label(
+            self, text='此版本为开源社区版', font=get_font(9, 'bold'),
+            bg=Theme.PRIMARY, fg='white', padx=10, pady=6,
+        )
+        badge.pack(side='left', fill='y')
+        self.canvas = tk.Canvas(self, bg=Theme.CARD_ALT, height=32, highlightthickness=0,
+                                cursor='hand2')
+        self.canvas.pack(side='left', fill='both', expand=True)
+        link = tk.Label(
+            self, text='了解 Pro 版  ›', font=get_font(9, 'bold'),
+            bg=Theme.CARD_ALT, fg=Theme.PRIMARY, cursor='hand2', padx=12,
+        )
+        link.pack(side='right', fill='y')
+
+        self.canvas.bind('<Configure>', self._reset_position)
+        self.canvas.bind('<Button-1>', lambda _event: self._show_pro_info())
+        link.bind('<Button-1>', lambda _event: self._show_pro_info())
+        link.bind('<Enter>', lambda _event: link.configure(fg=Theme.PRIMARY_HOVER))
+        link.bind('<Leave>', lambda _event: link.configure(fg=Theme.PRIMARY))
+        self.after(120, self._animate)
+
+    def _reset_position(self, _event=None):
+        width = max(1, self.canvas.winfo_width())
+        if self._text_id is None:
+            self._text_id = self.canvas.create_text(
+                width + 16, 16, text=self._message, anchor='w',
+                font=get_font(10), fill=Theme.TEXT_SECONDARY,
+            )
+        else:
+            self.canvas.coords(self._text_id, width + 16, 16)
+
+    def _animate(self):
+        if not self.winfo_exists() or not self.canvas.winfo_exists():
+            return
+        if self._text_id is None:
+            self._reset_position()
+        bbox = self.canvas.bbox(self._text_id)
+        if bbox is not None and bbox[2] < 0:
+            self.canvas.coords(self._text_id, self.canvas.winfo_width() + 16, 16)
+        else:
+            self.canvas.move(self._text_id, -1.2, 0)
+        self.after(32, self._animate)
+
+
 class CommunityEditionDialog(tk.Toplevel):
     """A local, dismissible notice describing the free community edition."""
 
     def __init__(self, app):
         super().__init__(app.root)
         self.app = app
-        self.title('欢迎使用公文格式处理工具社区版')
+        self.title(f'欢迎使用公文格式处理工具社区版 v{__version__}')
         self.configure(bg=Theme.BG)
         self.resizable(False, False)
         self.transient(app.root)
@@ -260,52 +387,33 @@ class CommunityEditionDialog(tk.Toplevel):
         body = tk.Frame(self, bg=Theme.BG, padx=24, pady=20)
         body.pack(fill='both', expand=True)
         tk.Label(
-            body, text='欢迎使用公文格式处理工具社区版',
+            body, text=f'欢迎使用公文格式处理工具社区版 v{__version__}',
             font=get_font(16, 'bold'), bg=Theme.BG, fg=Theme.TEXT,
         ).pack(anchor='w')
 
         message = (
-            '您正在使用由官方免费提供的开源社区版。\n'
-            '本版本无需购买激活码，官方不收取开源社区版软件费用。\n\n'
-            '如遇他人随意收费、删除版权声明或捆绑其他程序，请向交易平台举报。\n\n'
-            '需要更完整的功能？\n'
-            '公文格式处理工具Pro提供更完整的红头自定义、模板管理、PDF工具、'
-            '自动更新、优先问题修复和官方使用支持。\n\n'
-            'Pro版当前首发价：19.9元/台\n'
-            f'当前官方购买渠道：闲鱼（店铺名称：{XIANYU_STORE_NAME}）\n'
-            '抖音、小红书等渠道正在筹备中。最新官方渠道和Pro版本信息，'
-            '以GitHub仓库的PRO.md页面为准。'
+            f'{COMMUNITY_NOTICE_TEXT}\n\n'
+            '需要更完整的功能？公文格式处理工具 Pro 提供更完整的红头文件支持与自定义、错别字和病句检查、'
+            '自定义 AI 接入、智能 Agent 助手、模板管理、PDF 工具、自动更新、优先问题修复和使用支持。\n\n'
+            f'Pro 当前首发价：19.9 元/台\n闲鱼店铺：{XIANYU_STORE_NAME}\n'
+            '抖音、小红书等渠道正在筹备中；详细信息已内置在“了解 Pro 版”窗口中。'
         )
         tk.Label(
             body, text=message, font=get_font(10), bg=Theme.BG, fg=Theme.TEXT,
             justify='left', anchor='w', wraplength=560,
         ).pack(anchor='w', pady=(12, 8))
 
-        qr_frame = tk.Frame(body, bg=Theme.CARD, padx=10, pady=10)
-        qr_frame.pack(fill='x', pady=(4, 12))
-        try:
-            image = tk.PhotoImage(file=str(_resource_path('assets', 'xianyu_qr.png')))
-            scale = max(1, int((image.width() + 179) // 180))
-            self._qr_image = image.subsample(scale, scale) if scale > 1 else image
-            tk.Label(qr_frame, image=self._qr_image, bg=Theme.CARD).pack(side='left')
-        except tk.TclError:
-            self._qr_image = None
-        tk.Label(
-            qr_frame,
-            text=f'扫码进入闲鱼店铺\n无法扫码时，请搜索店铺名称：{XIANYU_STORE_NAME}',
-            font=get_font(10), bg=Theme.CARD, fg=Theme.TEXT_SECONDARY,
-            justify='left', anchor='w', wraplength=320,
-        ).pack(side='left', padx=(14, 0), fill='x', expand=True)
+        _add_xianyu_qr_panel(body, self)
 
         action_row = tk.Frame(body, bg=Theme.BG)
         action_row.pack(fill='x')
         tk.Button(
-            action_row, text='继续使用社区版', command=self.destroy,
-            bg=Theme.PRIMARY, fg='white', activebackground=Theme.PRIMARY_HOVER,
-            activeforeground='white', relief='flat', padx=12, pady=7,
+            action_row, text='继续使用开源社区版', command=self.destroy,
+            bg=Theme.CARD, fg=Theme.PRIMARY, activebackground=Theme.PRIMARY_LIGHT,
+            activeforeground=Theme.PRIMARY_HOVER, relief='solid', bd=1, padx=12, pady=7,
         ).pack(side='left')
         tk.Button(
-            action_row, text='了解Pro版', command=lambda: _open_web_url(PRO_INFO_URL),
+            action_row, text='了解 Pro 版', command=lambda: ProInfoDialog(self),
             bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1,
             padx=12, pady=7,
         ).pack(side='left', padx=(8, 0))
@@ -315,13 +423,54 @@ class CommunityEditionDialog(tk.Toplevel):
             padx=12, pady=7,
         ).pack(side='left', padx=(8, 0))
         tk.Label(
-            body, text='升级Pro完全自愿，不影响社区版基础功能的正常使用。',
+            body, text='升级 Pro 完全自愿，不影响社区版基础功能的正常使用。',
             font=get_font(9), bg=Theme.BG, fg=Theme.TEXT_MUTED,
         ).pack(anchor='w', pady=(10, 0))
 
         self.update_idletasks()
         self.geometry(f'+{max(0, (self.winfo_screenwidth() - self.winfo_reqwidth()) // 2)}'
                       f'+{max(0, (self.winfo_screenheight() - self.winfo_reqheight()) // 2)}')
+
+
+class AboutDialog(tk.Toplevel):
+    """About window with an in-app route to the embedded Pro information."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title('关于')
+        self.configure(bg=Theme.BG)
+        self.resizable(False, False)
+        self.transient(parent)
+
+        body = tk.Frame(self, bg=Theme.BG, padx=24, pady=20)
+        body.pack(fill='both', expand=True)
+        about_text = (
+            f'公文格式处理工具  v{__version__}\n\n'
+            '一键将 Word 文档排版为标准公文格式\n\n'
+            '本开源社区版软件完全免费开源，不收取任何费用。\n'
+            '如您从网络购买到本工具，请立刻举报商家并要求退款。\n\n'
+            '开发者：KaguraNanaga\n'
+            '许可证：MIT License\n'
+            '项目地址：github.com/KaguraNanaga/docformat-gui\n\n'
+            '所有文档处理均在本地完成，不上传、不收集任何数据。\n'
+            '处理结果仅供参考，建议人工复核。'
+        )
+        tk.Label(
+            body, text=about_text, font=get_font(10), bg=Theme.BG,
+            fg=Theme.TEXT, justify='left', anchor='w', wraplength=500,
+        ).pack(anchor='w')
+        actions = tk.Frame(body, bg=Theme.BG)
+        actions.pack(fill='x', pady=(16, 0))
+        tk.Button(
+            actions, text='查看 Pro 版信息', command=lambda: ProInfoDialog(self),
+            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1, padx=12, pady=7,
+        ).pack(side='left')
+        tk.Button(
+            actions, text='关闭', command=self.destroy,
+            bg=Theme.CARD, fg=Theme.TEXT_SECONDARY, activebackground=Theme.BORDER_LIGHT,
+            activeforeground=Theme.TEXT, relief='solid', bd=1, padx=12, pady=7,
+        ).pack(side='right')
+        _fit_dialog_to_screen(self, parent, 570, 450, 500, 360)
 
 
 # ===== 配置管理 =====
@@ -820,6 +969,21 @@ class CustomSettingsDialog(tk.Toplevel):
         )
         cancel_top.pack(side='right', padx=(0, 10))
         cancel_top.bind('<Button-1>', lambda e: self._on_close())
+
+        free_notice_label = tk.Label(
+            header, text='本开源社区版软件完全免费开源，不收取任何费用', font=get_font(9),
+            bg=Theme.BG, fg=Theme.TEXT_MUTED, padx=8,
+        )
+        free_notice_label.pack(side='right', padx=(0, 6))
+
+        pro_info_link = tk.Label(
+            header, text='Pro 版详情', font=get_font(9),
+            bg=Theme.BG, fg=Theme.TEXT_MUTED, cursor='hand2', padx=8,
+        )
+        pro_info_link.pack(side='right', padx=(0, 6))
+        pro_info_link.bind('<Button-1>', lambda _event: ProInfoDialog(self))
+        pro_info_link.bind('<Enter>', lambda _event: pro_info_link.configure(fg=Theme.PRIMARY))
+        pro_info_link.bind('<Leave>', lambda _event: pro_info_link.configure(fg=Theme.TEXT_MUTED))
 
         self._build_preset_bar(self)
         
@@ -3717,7 +3881,7 @@ class ResultPanel(tk.Frame):
 
         tk.Label(
             self.result_content,
-            text='当前为免费社区版。Pro版提供完整工具、持续更新和官方支持。',
+            text='本工具完全免费开源，不收取任何费用。Pro 版信息可在“关于”或“了解详情”中查看。',
             font=get_font(9), bg=Theme.CARD, fg=Theme.TEXT_MUTED, anchor='w',
         ).pack(fill='x', anchor='w', pady=(Theme.SPACE_SM, 0))
         
@@ -3797,7 +3961,7 @@ class ResultPanel(tk.Frame):
 class DocFormatApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("公文格式处理工具")
+        self.root.title(f"公文格式处理工具 v{__version__}")
         _init_system_fonts()
         self._set_initial_window_geometry()
         self.root.configure(bg=Theme.BG)
@@ -3875,26 +4039,24 @@ class DocFormatApp:
         content.pack(fill='both', expand=True, padx=Theme.SPACE_XL, pady=Theme.SPACE_LG)
         
         # ===== 1. 头部 =====
+        title_row = tk.Frame(content, bg=Theme.BG)
+        title_row.pack(fill='x', pady=(0, Theme.SPACE_MD))
         tk.Label(
-            content,
+            title_row,
             text="公文格式处理工具",
             font=get_font(24, 'bold'),
             bg=Theme.BG,
             fg=Theme.TEXT
-        ).pack(anchor='w', pady=(0, Theme.SPACE_XL))
+        ).pack(side='left')
+        tk.Label(
+            title_row, text=f'v{__version__}', font=get_font(11, 'bold'),
+            bg=Theme.PRIMARY_LIGHT, fg=Theme.PRIMARY, padx=9, pady=4,
+        ).pack(side='left', padx=(Theme.SPACE_SM, 0), pady=(5, 0))
 
-        pro_banner = tk.Frame(content, bg=Theme.PRIMARY_LIGHT, highlightbackground=Theme.PRIMARY_SOFT,
-                              highlightthickness=1, padx=Theme.SPACE_SM, pady=Theme.SPACE_SM)
-        pro_banner.pack(fill='x', pady=(0, Theme.SPACE_LG))
-        banner_label = tk.Label(
-            pro_banner,
-            text='免费开源社区版｜官方不收取社区版授权费｜Pro版首发19.9元｜了解详情',
-            font=get_font(10), bg=Theme.PRIMARY_LIGHT, fg=Theme.PRIMARY, cursor='hand2', anchor='w',
+        self.community_notice_ticker = CommunityNoticeTicker(
+            content, show_pro_info=lambda: ProInfoDialog(self.root),
         )
-        banner_label.pack(fill='x')
-        banner_label.bind('<Button-1>', lambda _event: _open_web_url(PRO_INFO_URL))
-        banner_label.bind('<Enter>', lambda _event: banner_label.configure(fg=Theme.PRIMARY_HOVER))
-        banner_label.bind('<Leave>', lambda _event: banner_label.configure(fg=Theme.PRIMARY))
+        self.community_notice_ticker.pack(fill='x', pady=(0, Theme.SPACE_LG))
         
         # ===== 2. 文件选择区 =====
         file_section = tk.Frame(content, bg=Theme.BG)
@@ -4177,23 +4339,7 @@ class DocFormatApp:
     
     def _show_about(self):
         """显示关于对话框"""
-        about_text = (
-            f"公文格式处理工具  v{__version__}\n\n"
-            "一键将 Word 文档排版为标准公文格式\n\n"
-            "开发者：KaguraNanaga\n"
-            "许可证：MIT License\n"
-            "项目地址：github.com/KaguraNanaga/docformat-gui\n\n"
-            "─────────────────────\n\n"
-            "🔒 数据安全声明\n\n"
-            "所有文档处理均在本地完成。\n"
-            "本工具不联网、不上传、不收集任何数据。\n\n"
-            "─────────────────────\n\n"
-            "⚠ 免责声明\n\n"
-            "处理结果仅供参考，建议人工复核。\n"
-            "本软件按「原样」提供，不附带任何担保。\n"
-            "详见项目目录下 DISCLAIMER.md。"
-        )
-        messagebox.showinfo("关于", about_text)
+        AboutDialog(self.root)
 
     def _record_community_startup(self):
         """Persist only local display cadence; no network or usage analytics occur."""
@@ -4203,6 +4349,10 @@ class DocFormatApp:
             config = load_custom_settings()
             state = config.setdefault('community_notice', {})
             state['start_count'] = max(0, int(state.get('start_count', 0))) + 1
+            if state.get('schedule_version') != COMMUNITY_NOTICE_SCHEDULE_VERSION:
+                # 已安装旧版的用户也应至少看到一次更正后的免费开源声明。
+                state['schedule_version'] = COMMUNITY_NOTICE_SCHEDULE_VERSION
+                state['show_on_next_startup'] = True
             self._community_notice_state = state
             save_custom_settings(config)
         except Exception as exc:
@@ -4213,12 +4363,9 @@ class DocFormatApp:
         if self._processing_active or _is_pro_edition():
             return
         state = self._community_notice_state or {}
-        now = time.time()
-        if not should_show_community_notice(
-            state.get('start_count', 0), state.get('last_shown_at'), now,
-        ):
+        force_show = bool(state.pop('show_on_next_startup', False))
+        if not force_show and not should_show_community_notice(state.get('start_count', 0)):
             return
-        state['last_shown_at'] = now
         try:
             config = load_custom_settings()
             config['community_notice'] = state

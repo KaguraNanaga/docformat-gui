@@ -32,7 +32,7 @@ _configure_console_encoding()
 # 配置
 APP_NAME = "公文格式处理工具"
 APP_NAME_EN = "DocFormatter"
-VERSION = "1.8.8"
+VERSION = "1.8.8.1"
 MAIN_SCRIPT = "docformat_gui.py"
 MACOS_APP_BUNDLE_NAME = os.environ.get("MACOS_APP_BUNDLE_NAME", "公文格式处理助手").strip()
 
