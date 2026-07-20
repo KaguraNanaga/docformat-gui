@@ -25,6 +25,22 @@ def test_notice_ticker_uses_the_declared_free_and_pro_message():
     )
 
 
+def test_startup_notice_lists_pro_features_only_once():
+    full_message = f"{gui.COMMUNITY_NOTICE_TEXT}\n\n{gui.COMMUNITY_NOTICE_DETAILS_FOOTER}"
+    assert full_message.count("错别字和病句检查") == 1
+    assert "了解 Pro 版详情" in full_message
+
+
+def test_pro_details_dialog_has_room_and_a_scrollable_content_area():
+    assert gui.PRO_INFO_DIALOG_SIZE[0] >= 860
+    assert gui.PRO_INFO_DIALOG_SIZE[1] >= 760
+
+    source = (PROJECT_ROOT / "docformat_gui.py").read_text(encoding="utf-8")
+    dialog_source = source[source.index("class ProInfoDialog"):source.index("class CommunityNoticeTicker")]
+    assert "ttk.Scrollbar" in dialog_source
+    assert "self.resizable(True, True)" in dialog_source
+
+
 def test_pro_information_is_embedded_and_bundled_for_all_builds():
     pro_page = (PROJECT_ROOT / "PRO.md").read_text(encoding="utf-8")
     for text in (

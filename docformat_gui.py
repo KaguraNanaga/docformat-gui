@@ -114,7 +114,7 @@ except Exception as e:
     _DND_DISABLED_REASON = f"拖拽运行库不可用：{e}"
     _DND_AVAILABLE = False
 
-__version__ = '1.8.8.1'
+__version__ = '1.8.8.2'
 
 XIANYU_STORE_NAME = 'Mambo曼波'
 XIANYU_STORE_URL = 'https://p.goofish.com/p/hFODh4ju'
@@ -125,6 +125,12 @@ COMMUNITY_NOTICE_TEXT = (
     '本工具完全免费开源，不收取任何费用；如从网络付费购买，请举报商家并要求退款。'
     'Pro 版已发布，提供红头文件支持、错别字和病句检查、自定义 AI 接入、智能 Agent 助手、模板管理、PDF 工具、自动更新、优先问题修复和使用支持。'
 )
+COMMUNITY_NOTICE_DETAILS_FOOTER = (
+    f'Pro 当前首发价：19.9 元/台\n闲鱼店铺：{XIANYU_STORE_NAME}\n'
+    '抖音、小红书等渠道正在筹备中；点击“了解 Pro 版详情”可查看完整功能与购买信息。'
+)
+PRO_INFO_DIALOG_SIZE = (900, 780)
+PRO_INFO_DIALOG_MIN_SIZE = (680, 560)
 # 与仓库根目录 PRO.md 保持同步。此文案随社区版程序一同打包，不依赖网络或外部网页。
 EMBEDDED_PRO_INFO_TEXT = (
     '公文格式处理工具 Pro\n\n'
@@ -278,29 +284,53 @@ def get_font(size=12, weight='normal'):
 
 
 class ProInfoDialog(tk.Toplevel):
-    """Show the embedded Pro information without requiring a browser."""
+    """Show the embedded Pro information without requiring a browser.
+
+    The details are deliberately scrollable: a high-DPI display or a smaller
+    laptop screen must never hide the purchase information or action buttons.
+    """
 
     def __init__(self, parent):
         super().__init__(parent)
         self.title('Pro 版信息')
         self.configure(bg=Theme.BG)
-        self.resizable(False, False)
+        self.resizable(True, True)
         self.transient(parent)
 
-        body = tk.Frame(self, bg=Theme.BG, padx=24, pady=20)
-        body.pack(fill='both', expand=True)
+        content_area = tk.Frame(self, bg=Theme.BG)
+        content_area.pack(fill='both', expand=True)
+
+        self._content_canvas = tk.Canvas(
+            content_area, bg=Theme.BG, highlightthickness=0, borderwidth=0,
+        )
+        scrollbar = ttk.Scrollbar(
+            content_area, orient='vertical', command=self._content_canvas.yview,
+        )
+        self._content_canvas.configure(yscrollcommand=scrollbar.set)
+        self._content_canvas.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+
+        body = tk.Frame(self._content_canvas, bg=Theme.BG, padx=28, pady=24)
+        self._content_window = self._content_canvas.create_window(
+            (0, 0), window=body, anchor='nw',
+        )
+        body.bind('<Configure>', self._update_content_scrollregion)
+        self._content_canvas.bind('<Configure>', self._resize_content)
+
         tk.Label(
             body, text='Pro 版信息', font=get_font(16, 'bold'),
             bg=Theme.BG, fg=Theme.TEXT,
-        ).pack(anchor='w')
-        tk.Label(
+        ).pack(fill='x', anchor='w')
+        self._pro_info_label = tk.Label(
             body, text=EMBEDDED_PRO_INFO_TEXT, font=get_font(10),
-            bg=Theme.BG, fg=Theme.TEXT, justify='left', anchor='w', wraplength=580,
-        ).pack(anchor='w', pady=(12, 10))
+            bg=Theme.BG, fg=Theme.TEXT, justify='left', anchor='w', wraplength=760,
+        )
+        self._pro_info_label.pack(fill='x', anchor='w', pady=(12, 10))
         _add_xianyu_qr_panel(body, self)
 
-        actions = tk.Frame(body, bg=Theme.BG)
-        actions.pack(fill='x')
+        # Keep the actions visible even if the text needs to scroll.
+        actions = tk.Frame(self, bg=Theme.BG, padx=28)
+        actions.pack(fill='x', pady=(12, 20))
         tk.Button(
             actions, text='打开闲鱼店铺', command=lambda: _open_web_url(XIANYU_STORE_URL),
             bg=Theme.CARD, fg=Theme.PRIMARY, activebackground=Theme.PRIMARY_LIGHT,
@@ -315,7 +345,20 @@ class ProInfoDialog(tk.Toplevel):
             bg=Theme.CARD, fg=Theme.TEXT_SECONDARY, relief='solid', bd=1, padx=12, pady=7,
         ).pack(side='right')
 
-        _fit_dialog_to_screen(self, parent, 660, 700, 520, 500)
+        _fit_dialog_to_screen(
+            self, parent,
+            *PRO_INFO_DIALOG_SIZE,
+            *PRO_INFO_DIALOG_MIN_SIZE,
+        )
+
+    def _update_content_scrollregion(self, _event=None):
+        self._content_canvas.configure(scrollregion=self._content_canvas.bbox('all'))
+
+    def _resize_content(self, event):
+        """Fit the content to the dialog width and reflow long Chinese text."""
+        self._content_canvas.itemconfigure(self._content_window, width=event.width)
+        self._pro_info_label.configure(wraplength=max(520, event.width - 56))
+        self._update_content_scrollregion()
 
 
 class CommunityNoticeTicker(tk.Frame):
@@ -393,10 +436,7 @@ class CommunityEditionDialog(tk.Toplevel):
 
         message = (
             f'{COMMUNITY_NOTICE_TEXT}\n\n'
-            '需要更完整的功能？公文格式处理工具 Pro 提供更完整的红头文件支持与自定义、错别字和病句检查、'
-            '自定义 AI 接入、智能 Agent 助手、模板管理、PDF 工具、自动更新、优先问题修复和使用支持。\n\n'
-            f'Pro 当前首发价：19.9 元/台\n闲鱼店铺：{XIANYU_STORE_NAME}\n'
-            '抖音、小红书等渠道正在筹备中；详细信息已内置在“了解 Pro 版”窗口中。'
+            f'{COMMUNITY_NOTICE_DETAILS_FOOTER}'
         )
         tk.Label(
             body, text=message, font=get_font(10), bg=Theme.BG, fg=Theme.TEXT,
@@ -413,7 +453,7 @@ class CommunityEditionDialog(tk.Toplevel):
             activeforeground=Theme.PRIMARY_HOVER, relief='solid', bd=1, padx=12, pady=7,
         ).pack(side='left')
         tk.Button(
-            action_row, text='了解 Pro 版', command=lambda: ProInfoDialog(self),
+            action_row, text='了解 Pro 版详情', command=lambda: ProInfoDialog(self),
             bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1,
             padx=12, pady=7,
         ).pack(side='left', padx=(8, 0))
