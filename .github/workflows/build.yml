@@ -99,6 +99,8 @@ jobs:
           pyinstaller --onefile --name=docformat_linux \
             --add-data "scripts:scripts" \
             --add-data "assets/xianyu_qr.png:assets" \
+            --add-data "LICENSE:." \
+            --add-data "LICENSE-HISTORY.md:." \
             --add-data "${DOCX_TEMPLATES}:docx/templates" \
             --hidden-import=docx --hidden-import=lxml \
             docformat_gui.py
@@ -146,6 +148,8 @@ jobs:
           pyinstaller --onefile --name=docformat_linux \
             --add-data "scripts:scripts" \
             --add-data "assets/xianyu_qr.png:assets" \
+            --add-data "LICENSE:." \
+            --add-data "LICENSE-HISTORY.md:." \
             --add-data "${DOCX_TEMPLATES}:docx/templates" \
             --hidden-import=docx --hidden-import=lxml \
             docformat_gui.py
@@ -347,7 +351,7 @@ jobs:
             - ✅ 支持 GB/T 公文标准
             - ✅ 中文禁则、图片附件保护和标题中英文字体设置
 
-            社区版免费开源，无需购买激活码。Pro版本与官方购买渠道以仓库 [PRO.md](https://github.com/${{ github.repository }}/blob/${{ steps.get_version.outputs.VERSION }}/PRO.md) 为准。
+            v1.8.8.3 起，免费开源社区版依据 PolyForm Noncommercial License 1.0.0 提供，仅限个人和非商业用途免费使用。Pro版本与购买渠道以仓库 [PRO.md](https://github.com/${{ github.repository }}/blob/${{ steps.get_version.outputs.VERSION }}/PRO.md) 为准。
             
           files: |
             dist/docformat_windows.exe
