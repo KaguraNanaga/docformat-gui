@@ -18,7 +18,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue" alt="Platform">
-  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
+  <img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange" alt="License">
   <img src="https://img.shields.io/badge/Language-Python-yellow" alt="Language">
 </p>
 
@@ -122,7 +122,9 @@ If this tool helps you, or if you find any bugs, please feel free to contact me:
 
 ## License
 
-This project is open-source under the [MIT License](LICENSE).
+Starting with `v1.8.8.3`, this source-available community edition is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). It is free for personal and noncommercial purposes. Commercial sale, paid redistribution, and other commercial uses require separate permission.
+
+Versions up to and including `v1.8.8.2` remain under the MIT License that accompanied those releases. See [License History](LICENSE-HISTORY.md).
 
 <p align="center">
   <sub>Made with ❤️ by <a href="https://github.com/KaguraNanaga">KaguraNanaga</a></sub>

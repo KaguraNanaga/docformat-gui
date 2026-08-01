@@ -114,15 +114,18 @@ except Exception as e:
     _DND_DISABLED_REASON = f"拖拽运行库不可用：{e}"
     _DND_AVAILABLE = False
 
-__version__ = '1.8.8.2'
+__version__ = '1.8.8.3'
 
 XIANYU_STORE_NAME = 'Mambo曼波'
 XIANYU_STORE_URL = 'https://p.goofish.com/p/hFODh4ju'
 PRO_INFO_URL = 'https://github.com/KaguraNanaga/docformat-gui/blob/main/PRO.md'
+LICENSE_NAME = 'PolyForm Noncommercial License 1.0.0'
+LICENSE_URL = 'https://polyformproject.org/licenses/noncommercial/1.0.0'
 COMMUNITY_NOTICE_SCHEDULE = (1, 3, 7, 10, 20)
-COMMUNITY_NOTICE_SCHEDULE_VERSION = 4
+COMMUNITY_NOTICE_SCHEDULE_VERSION = 5
 COMMUNITY_NOTICE_TEXT = (
-    '本工具完全免费开源，不收取任何费用；如从网络付费购买，请举报商家并要求退款。'
+    '本免费开源社区版仅限个人和非商业用途免费使用；未经许可，不得销售、收费分发或用于其他商业目的。'
+    '如付费购买到本社区版本，请要求退款并举报商家。'
     'Pro 版已发布，提供红头文件支持、错别字和病句检查、自定义 AI 接入、智能 Agent 助手、模板管理、PDF 工具、自动更新、优先问题修复和使用支持。'
 )
 COMMUNITY_NOTICE_DETAILS_FOOTER = (
@@ -134,9 +137,10 @@ PRO_INFO_DIALOG_MIN_SIZE = (680, 560)
 # 与仓库根目录 PRO.md 保持同步。此文案随社区版程序一同打包，不依赖网络或外部网页。
 EMBEDDED_PRO_INFO_TEXT = (
     '公文格式处理工具 Pro\n\n'
-    '您当前使用的是开源社区版（GitHub）。\n'
-    '本开源社区版软件完全免费开源，不收取任何费用，无需购买激活码。\n\n'
-    '如有人出售本工具、删除版权声明或捆绑其他程序，请向交易平台举报并要求退款。\n\n'
+    '您当前使用的是免费开源社区版（GitHub）。\n'
+    '本版本依据 PolyForm Noncommercial License 1.0.0 提供，仅限个人和非商业用途免费使用，无需购买激活码。\n'
+    '未经许可，不得销售、收费分发或用于其他商业目的。\n\n'
+    '如有人出售本社区版本、删除版权或许可证声明、捆绑其他程序，请向交易平台举报并要求退款。\n\n'
     'Pro 是独立的付费版本，提供更完整的红头文件支持与自定义、错别字和病句检查、自定义 AI 接入、智能 Agent 助手、模板管理、PDF 工具、自动更新、优先问题修复和使用支持。'
     '\n\n'
     '购买渠道公示\n\n'
@@ -146,7 +150,7 @@ EMBEDDED_PRO_INFO_TEXT = (
     '其他渠道\n\n'
     '抖音商城：筹备中\n'
     '小红书店铺：筹备中\n\n'
-    '最新渠道与 Pro 信息以 GitHub 仓库的 PRO.md 为准。升级 Pro 完全自愿，不影响开源社区版（GitHub）的基础功能使用。'
+    '最新渠道与 Pro 信息以 GitHub 仓库的 PRO.md 为准。升级 Pro 完全自愿，不影响免费开源社区版（GitHub）在许可证允许范围内的基础功能使用。'
 )
 
 
@@ -373,7 +377,7 @@ class CommunityNoticeTicker(tk.Frame):
         self._text_id = None
 
         badge = tk.Label(
-            self, text='此版本为开源社区版', font=get_font(9, 'bold'),
+            self, text='此版本为免费开源社区版', font=get_font(9, 'bold'),
             bg=Theme.PRIMARY, fg='white', padx=10, pady=6,
         )
         badge.pack(side='left', fill='y')
@@ -417,12 +421,12 @@ class CommunityNoticeTicker(tk.Frame):
 
 
 class CommunityEditionDialog(tk.Toplevel):
-    """A local, dismissible notice describing the free community edition."""
+    """A local, dismissible notice describing the community source edition."""
 
     def __init__(self, app):
         super().__init__(app.root)
         self.app = app
-        self.title(f'欢迎使用公文格式处理工具社区版 v{__version__}')
+        self.title(f'欢迎使用公文格式处理工具免费开源社区版 v{__version__}')
         self.configure(bg=Theme.BG)
         self.resizable(False, False)
         self.transient(app.root)
@@ -430,7 +434,7 @@ class CommunityEditionDialog(tk.Toplevel):
         body = tk.Frame(self, bg=Theme.BG, padx=24, pady=20)
         body.pack(fill='both', expand=True)
         tk.Label(
-            body, text=f'欢迎使用公文格式处理工具社区版 v{__version__}',
+            body, text=f'欢迎使用公文格式处理工具免费开源社区版 v{__version__}',
             font=get_font(16, 'bold'), bg=Theme.BG, fg=Theme.TEXT,
         ).pack(anchor='w')
 
@@ -448,7 +452,7 @@ class CommunityEditionDialog(tk.Toplevel):
         action_row = tk.Frame(body, bg=Theme.BG)
         action_row.pack(fill='x')
         tk.Button(
-            action_row, text='继续使用开源社区版', command=self.destroy,
+            action_row, text='继续使用免费开源社区版', command=self.destroy,
             bg=Theme.CARD, fg=Theme.PRIMARY, activebackground=Theme.PRIMARY_LIGHT,
             activeforeground=Theme.PRIMARY_HOVER, relief='solid', bd=1, padx=12, pady=7,
         ).pack(side='left')
@@ -463,7 +467,7 @@ class CommunityEditionDialog(tk.Toplevel):
             padx=12, pady=7,
         ).pack(side='left', padx=(8, 0))
         tk.Label(
-            body, text='升级 Pro 完全自愿，不影响社区版基础功能的正常使用。',
+            body, text='升级 Pro 完全自愿，不影响免费开源社区版在许可证允许范围内的正常使用。',
             font=get_font(9), bg=Theme.BG, fg=Theme.TEXT_MUTED,
         ).pack(anchor='w', pady=(10, 0))
 
@@ -487,10 +491,12 @@ class AboutDialog(tk.Toplevel):
         about_text = (
             f'公文格式处理工具  v{__version__}\n\n'
             '一键将 Word 文档排版为标准公文格式\n\n'
-            '本开源社区版软件完全免费开源，不收取任何费用。\n'
-            '如您从网络购买到本工具，请立刻举报商家并要求退款。\n\n'
+            '本免费开源社区版仅限个人和非商业用途免费使用。\n'
+            '未经许可，不得销售、收费分发或用于其他商业目的。\n\n'
             '开发者：KaguraNanaga\n'
-            '许可证：MIT License\n'
+            f'许可证：{LICENSE_NAME}\n'
+            f'许可证地址：{LICENSE_URL}\n'
+            'Required Notice: Copyright 2025-2026 KaguraNanaga.\n'
             '项目地址：github.com/KaguraNanaga/docformat-gui\n\n'
             '所有文档处理均在本地完成，不上传、不收集任何数据。\n'
             '处理结果仅供参考，建议人工复核。'
@@ -505,6 +511,10 @@ class AboutDialog(tk.Toplevel):
             actions, text='查看 Pro 版信息', command=lambda: ProInfoDialog(self),
             bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1, padx=12, pady=7,
         ).pack(side='left')
+        tk.Button(
+            actions, text='查看使用许可证', command=lambda: _open_web_url(LICENSE_URL),
+            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1, padx=12, pady=7,
+        ).pack(side='left', padx=(8, 0))
         tk.Button(
             actions, text='关闭', command=self.destroy,
             bg=Theme.CARD, fg=Theme.TEXT_SECONDARY, activebackground=Theme.BORDER_LIGHT,
@@ -1011,7 +1021,7 @@ class CustomSettingsDialog(tk.Toplevel):
         cancel_top.bind('<Button-1>', lambda e: self._on_close())
 
         free_notice_label = tk.Label(
-            header, text='本开源社区版软件完全免费开源，不收取任何费用', font=get_font(9),
+            header, text='本免费开源社区版仅限个人和非商业用途免费使用', font=get_font(9),
             bg=Theme.BG, fg=Theme.TEXT_MUTED, padx=8,
         )
         free_notice_label.pack(side='right', padx=(0, 6))
@@ -3921,7 +3931,7 @@ class ResultPanel(tk.Frame):
 
         tk.Label(
             self.result_content,
-            text='本工具完全免费开源，不收取任何费用。Pro 版信息可在“关于”或“了解详情”中查看。',
+            text='本免费开源社区版仅限个人和非商业用途免费使用。Pro 版信息可在“关于”或“了解详情”中查看。',
             font=get_font(9), bg=Theme.CARD, fg=Theme.TEXT_MUTED, anchor='w',
         ).pack(fill='x', anchor='w', pady=(Theme.SPACE_SM, 0))
         
@@ -4351,7 +4361,7 @@ class DocFormatApp:
         
         tk.Label(
             footer,
-            text="© 2026 今日之明日 · MIT License",
+            text="© 2025-2026 KaguraNanaga · PolyForm NC 1.0.0",
             font=get_font(9),
             bg=Theme.BG,
             fg=Theme.TEXT_MUTED
@@ -4390,7 +4400,7 @@ class DocFormatApp:
             state = config.setdefault('community_notice', {})
             state['start_count'] = max(0, int(state.get('start_count', 0))) + 1
             if state.get('schedule_version') != COMMUNITY_NOTICE_SCHEDULE_VERSION:
-                # 已安装旧版的用户也应至少看到一次更正后的免费开源声明。
+                # 已安装旧版的用户也应至少看到一次更新后的非商业许可声明。
                 state['schedule_version'] = COMMUNITY_NOTICE_SCHEDULE_VERSION
                 state['show_on_next_startup'] = True
             self._community_notice_state = state
