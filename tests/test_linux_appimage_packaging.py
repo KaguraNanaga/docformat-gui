@@ -6,11 +6,10 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 
 
-def test_linux_workflow_builds_appimages_with_the_community_notice_asset():
+def test_linux_workflow_builds_appimages():
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
 
     assert workflow.count("image: almalinux:8") == 2
-    assert workflow.count('assets/xianyu_qr.png:assets') >= 2
     assert workflow.count("squashfs-tools wget git findutils file") == 2
     assert "packaging/appimage/build-appimage.sh" in workflow
     assert "docformat_linux_amd64.AppImage" in workflow

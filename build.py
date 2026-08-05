@@ -460,7 +460,6 @@ def build_windows():
         "--clean",
         # 添加数据文件
         "--add-data=scripts;scripts",
-        "--add-data=assets/xianyu_qr.png;assets",
         "--add-data=LICENSE;.",
         "--add-data=LICENSE-HISTORY.md;.",
         # python-docx 模板文件（页眉页脚等必需）
@@ -508,7 +507,6 @@ def build_linux():
         f"--name={output_name}",
         "--clean",
         "--add-data=scripts:scripts",
-        "--add-data=assets/xianyu_qr.png:assets",
         "--add-data=LICENSE:.",
         "--add-data=LICENSE-HISTORY.md:.",
         # python-docx 模板文件
@@ -561,7 +559,6 @@ def build_macos():
         "--osx-bundle-identifier=com.kagurananaga.docformat-gui",
         # macOS 路径分隔符与 Linux 相同
         "--add-data=scripts:scripts",
-        "--add-data=assets/xianyu_qr.png:assets",
         "--add-data=LICENSE:.",
         "--add-data=LICENSE-HISTORY.md:.",
         # python-docx 模板文件
@@ -640,7 +637,7 @@ def create_release_notes():
 - ✅ 标点符号修复
 - ✅ 支持 GB/T 公文标准、学术论文、法律文书格式
 - ✅ 中文禁则、图片附件保护和可自定义标题中英文字体
-- ✅ 免费开源社区版非商业许可提示；Pro 信息以仓库 PRO.md 为准
+- ✅ 免费开源社区版非商业许可提示
 
 ## 系统要求
 
