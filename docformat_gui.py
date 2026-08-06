@@ -116,9 +116,6 @@ except Exception as e:
 
 __version__ = '1.8.8.3'
 
-XIANYU_STORE_NAME = 'Mambo曼波'
-XIANYU_STORE_URL = 'https://p.goofish.com/p/hFODh4ju'
-PRO_INFO_URL = 'https://github.com/KaguraNanaga/docformat-gui/blob/main/PRO.md'
 LICENSE_NAME = 'PolyForm Noncommercial License 1.0.0'
 LICENSE_URL = 'https://polyformproject.org/licenses/noncommercial/1.0.0'
 COMMUNITY_NOTICE_SCHEDULE = (1, 3, 7, 10, 20)
@@ -126,38 +123,7 @@ COMMUNITY_NOTICE_SCHEDULE_VERSION = 5
 COMMUNITY_NOTICE_TEXT = (
     '本免费开源社区版仅限个人和非商业用途免费使用；未经许可，不得销售、收费分发或用于其他商业目的。'
     '如付费购买到本社区版本，请要求退款并举报商家。'
-    'Pro 版已发布，提供红头文件支持、错别字和病句检查、自定义 AI 接入、智能 Agent 助手、模板管理、PDF 工具、自动更新、优先问题修复和使用支持。'
 )
-COMMUNITY_NOTICE_DETAILS_FOOTER = (
-    f'Pro 当前首发价：19.9 元/台\n闲鱼店铺：{XIANYU_STORE_NAME}\n'
-    '抖音、小红书等渠道正在筹备中；点击“了解 Pro 版详情”可查看完整功能与购买信息。'
-)
-PRO_INFO_DIALOG_SIZE = (900, 780)
-PRO_INFO_DIALOG_MIN_SIZE = (680, 560)
-# 与仓库根目录 PRO.md 保持同步。此文案随社区版程序一同打包，不依赖网络或外部网页。
-EMBEDDED_PRO_INFO_TEXT = (
-    '公文格式处理工具 Pro\n\n'
-    '您当前使用的是免费开源社区版（GitHub）。\n'
-    '本版本依据 PolyForm Noncommercial License 1.0.0 提供，仅限个人和非商业用途免费使用，无需购买激活码。\n'
-    '未经许可，不得销售、收费分发或用于其他商业目的。\n\n'
-    '如有人出售本社区版本、删除版权或许可证声明、捆绑其他程序，请向交易平台举报并要求退款。\n\n'
-    'Pro 是独立的付费版本，提供更完整的红头文件支持与自定义、错别字和病句检查、自定义 AI 接入、智能 Agent 助手、模板管理、PDF 工具、自动更新、优先问题修复和使用支持。'
-    '\n\n'
-    '购买渠道公示\n\n'
-    f'闲鱼店铺：{XIANYU_STORE_NAME}\n'
-    f'闲鱼链接：{XIANYU_STORE_URL}\n\n'
-    'Pro 当前首发价：19.9 元/台。\n\n'
-    '其他渠道\n\n'
-    '抖音商城：筹备中\n'
-    '小红书店铺：筹备中\n\n'
-    '最新渠道与 Pro 信息以 GitHub 仓库的 PRO.md 为准。升级 Pro 完全自愿，不影响免费开源社区版（GitHub）在许可证允许范围内的基础功能使用。'
-)
-
-
-def _resource_path(*parts):
-    """Resolve an asset in source mode and in a PyInstaller bundle."""
-    base_dir = Path(getattr(sys, '_MEIPASS', PROJECT_ROOT))
-    return base_dir.joinpath(*parts)
 
 
 def _open_web_url(url):
@@ -168,15 +134,8 @@ def _open_web_url(url):
         pass
 
 
-def _is_pro_edition():
-    """Allow a separately packaged Pro build to suppress community-only notices."""
-    return os.environ.get('DOCFORMAT_EDITION', '').strip().lower() == 'pro'
-
-
-def should_show_community_notice(start_count, last_shown_at=None, now=None, is_pro=False):
+def should_show_community_notice(start_count, last_shown_at=None, now=None):
     """Return whether a community-edition notice is due on this launch."""
-    if is_pro:
-        return False
     try:
         start_count = int(start_count)
     except (TypeError, ValueError):
@@ -196,27 +155,6 @@ def _open_file(path):
             subprocess.Popen(['xdg-open', path])
     except Exception:
         pass
-
-
-def _add_xianyu_qr_panel(parent, image_owner):
-    """Add the bundled Xianyu QR code and retain its Tk image reference."""
-    qr_frame = tk.Frame(parent, bg=Theme.CARD, padx=10, pady=10)
-    qr_frame.pack(fill='x', pady=(4, 12))
-    try:
-        image = tk.PhotoImage(master=image_owner, file=str(_resource_path('assets', 'xianyu_qr.png')))
-        scale = max(1, int((image.width() + 179) // 180))
-        qr_image = image.subsample(scale, scale) if scale > 1 else image
-        image_owner._xianyu_qr_image = qr_image
-        tk.Label(qr_frame, image=qr_image, bg=Theme.CARD).pack(side='left')
-    except tk.TclError as exc:
-        # QR code is optional visual guidance; keep a clear text fallback if a platform cannot render it.
-        print(f'[提示] 闲鱼二维码加载失败：{exc}')
-    tk.Label(
-        qr_frame,
-        text=f'扫码进入闲鱼店铺\n无法扫码时，请搜索店铺名称：{XIANYU_STORE_NAME}',
-        font=get_font(10), bg=Theme.CARD, fg=Theme.TEXT_SECONDARY,
-        justify='left', anchor='w', wraplength=320,
-    ).pack(side='left', padx=(14, 0), fill='x', expand=True)
 
 
 # ===== 设计系统 =====
@@ -287,92 +225,13 @@ def get_font(size=12, weight='normal'):
     return (Theme.FONT_SERIF[0], size, weight)
 
 
-class ProInfoDialog(tk.Toplevel):
-    """Show the embedded Pro information without requiring a browser.
-
-    The details are deliberately scrollable: a high-DPI display or a smaller
-    laptop screen must never hide the purchase information or action buttons.
-    """
-
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.title('Pro 版信息')
-        self.configure(bg=Theme.BG)
-        self.resizable(True, True)
-        self.transient(parent)
-
-        content_area = tk.Frame(self, bg=Theme.BG)
-        content_area.pack(fill='both', expand=True)
-
-        self._content_canvas = tk.Canvas(
-            content_area, bg=Theme.BG, highlightthickness=0, borderwidth=0,
-        )
-        scrollbar = ttk.Scrollbar(
-            content_area, orient='vertical', command=self._content_canvas.yview,
-        )
-        self._content_canvas.configure(yscrollcommand=scrollbar.set)
-        self._content_canvas.pack(side='left', fill='both', expand=True)
-        scrollbar.pack(side='right', fill='y')
-
-        body = tk.Frame(self._content_canvas, bg=Theme.BG, padx=28, pady=24)
-        self._content_window = self._content_canvas.create_window(
-            (0, 0), window=body, anchor='nw',
-        )
-        body.bind('<Configure>', self._update_content_scrollregion)
-        self._content_canvas.bind('<Configure>', self._resize_content)
-
-        tk.Label(
-            body, text='Pro 版信息', font=get_font(16, 'bold'),
-            bg=Theme.BG, fg=Theme.TEXT,
-        ).pack(fill='x', anchor='w')
-        self._pro_info_label = tk.Label(
-            body, text=EMBEDDED_PRO_INFO_TEXT, font=get_font(10),
-            bg=Theme.BG, fg=Theme.TEXT, justify='left', anchor='w', wraplength=760,
-        )
-        self._pro_info_label.pack(fill='x', anchor='w', pady=(12, 10))
-        _add_xianyu_qr_panel(body, self)
-
-        # Keep the actions visible even if the text needs to scroll.
-        actions = tk.Frame(self, bg=Theme.BG, padx=28)
-        actions.pack(fill='x', pady=(12, 20))
-        tk.Button(
-            actions, text='打开闲鱼店铺', command=lambda: _open_web_url(XIANYU_STORE_URL),
-            bg=Theme.CARD, fg=Theme.PRIMARY, activebackground=Theme.PRIMARY_LIGHT,
-            activeforeground=Theme.PRIMARY_HOVER, relief='solid', bd=1, padx=12, pady=7,
-        ).pack(side='left')
-        tk.Button(
-            actions, text='查看 GitHub PRO.md', command=lambda: _open_web_url(PRO_INFO_URL),
-            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1, padx=12, pady=7,
-        ).pack(side='left', padx=(8, 0))
-        tk.Button(
-            actions, text='关闭', command=self.destroy,
-            bg=Theme.CARD, fg=Theme.TEXT_SECONDARY, relief='solid', bd=1, padx=12, pady=7,
-        ).pack(side='right')
-
-        _fit_dialog_to_screen(
-            self, parent,
-            *PRO_INFO_DIALOG_SIZE,
-            *PRO_INFO_DIALOG_MIN_SIZE,
-        )
-
-    def _update_content_scrollregion(self, _event=None):
-        self._content_canvas.configure(scrollregion=self._content_canvas.bbox('all'))
-
-    def _resize_content(self, event):
-        """Fit the content to the dialog width and reflow long Chinese text."""
-        self._content_canvas.itemconfigure(self._content_window, width=event.width)
-        self._pro_info_label.configure(wraplength=max(520, event.width - 56))
-        self._update_content_scrollregion()
-
-
 class CommunityNoticeTicker(tk.Frame):
     """A compact, continuously moving community-edition disclosure."""
 
-    def __init__(self, parent, show_pro_info):
+    def __init__(self, parent):
         super().__init__(parent, bg=Theme.CARD_ALT, highlightbackground=Theme.BORDER,
                          highlightthickness=1, height=34)
         self.pack_propagate(False)
-        self._show_pro_info = show_pro_info
         self._message = COMMUNITY_NOTICE_TEXT
         self._text_id = None
 
@@ -381,20 +240,12 @@ class CommunityNoticeTicker(tk.Frame):
             bg=Theme.PRIMARY, fg='white', padx=10, pady=6,
         )
         badge.pack(side='left', fill='y')
-        self.canvas = tk.Canvas(self, bg=Theme.CARD_ALT, height=32, highlightthickness=0,
-                                cursor='hand2')
-        self.canvas.pack(side='left', fill='both', expand=True)
-        link = tk.Label(
-            self, text='了解 Pro 版  ›', font=get_font(9, 'bold'),
-            bg=Theme.CARD_ALT, fg=Theme.PRIMARY, cursor='hand2', padx=12,
+        self.canvas = tk.Canvas(
+            self, bg=Theme.CARD_ALT, height=32, highlightthickness=0,
         )
-        link.pack(side='right', fill='y')
+        self.canvas.pack(side='left', fill='both', expand=True)
 
         self.canvas.bind('<Configure>', self._reset_position)
-        self.canvas.bind('<Button-1>', lambda _event: self._show_pro_info())
-        link.bind('<Button-1>', lambda _event: self._show_pro_info())
-        link.bind('<Enter>', lambda _event: link.configure(fg=Theme.PRIMARY_HOVER))
-        link.bind('<Leave>', lambda _event: link.configure(fg=Theme.PRIMARY))
         self.after(120, self._animate)
 
     def _reset_position(self, _event=None):
@@ -438,16 +289,10 @@ class CommunityEditionDialog(tk.Toplevel):
             font=get_font(16, 'bold'), bg=Theme.BG, fg=Theme.TEXT,
         ).pack(anchor='w')
 
-        message = (
-            f'{COMMUNITY_NOTICE_TEXT}\n\n'
-            f'{COMMUNITY_NOTICE_DETAILS_FOOTER}'
-        )
         tk.Label(
-            body, text=message, font=get_font(10), bg=Theme.BG, fg=Theme.TEXT,
+            body, text=COMMUNITY_NOTICE_TEXT, font=get_font(10), bg=Theme.BG, fg=Theme.TEXT,
             justify='left', anchor='w', wraplength=560,
         ).pack(anchor='w', pady=(12, 8))
-
-        _add_xianyu_qr_panel(body, self)
 
         action_row = tk.Frame(body, bg=Theme.BG)
         action_row.pack(fill='x')
@@ -456,28 +301,13 @@ class CommunityEditionDialog(tk.Toplevel):
             bg=Theme.CARD, fg=Theme.PRIMARY, activebackground=Theme.PRIMARY_LIGHT,
             activeforeground=Theme.PRIMARY_HOVER, relief='solid', bd=1, padx=12, pady=7,
         ).pack(side='left')
-        tk.Button(
-            action_row, text='了解 Pro 版详情', command=lambda: ProInfoDialog(self),
-            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1,
-            padx=12, pady=7,
-        ).pack(side='left', padx=(8, 0))
-        tk.Button(
-            action_row, text='打开闲鱼店铺', command=lambda: _open_web_url(XIANYU_STORE_URL),
-            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1,
-            padx=12, pady=7,
-        ).pack(side='left', padx=(8, 0))
-        tk.Label(
-            body, text='升级 Pro 完全自愿，不影响免费开源社区版在许可证允许范围内的正常使用。',
-            font=get_font(9), bg=Theme.BG, fg=Theme.TEXT_MUTED,
-        ).pack(anchor='w', pady=(10, 0))
-
         self.update_idletasks()
         self.geometry(f'+{max(0, (self.winfo_screenwidth() - self.winfo_reqwidth()) // 2)}'
                       f'+{max(0, (self.winfo_screenheight() - self.winfo_reqheight()) // 2)}')
 
 
 class AboutDialog(tk.Toplevel):
-    """About window with an in-app route to the embedded Pro information."""
+    """Show application, privacy, and license information."""
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -508,13 +338,9 @@ class AboutDialog(tk.Toplevel):
         actions = tk.Frame(body, bg=Theme.BG)
         actions.pack(fill='x', pady=(16, 0))
         tk.Button(
-            actions, text='查看 Pro 版信息', command=lambda: ProInfoDialog(self),
-            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1, padx=12, pady=7,
-        ).pack(side='left')
-        tk.Button(
             actions, text='查看使用许可证', command=lambda: _open_web_url(LICENSE_URL),
             bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1, padx=12, pady=7,
-        ).pack(side='left', padx=(8, 0))
+        ).pack(side='left')
         tk.Button(
             actions, text='关闭', command=self.destroy,
             bg=Theme.CARD, fg=Theme.TEXT_SECONDARY, activebackground=Theme.BORDER_LIGHT,
@@ -695,7 +521,9 @@ DEFAULT_CUSTOM_SETTINGS = {
     'table': {
         'font_cn': '仿宋_GB2312', 'font_en': 'Times New Roman',
         'size': 12, 'bold': False, 'line_spacing': 22,
-        'first_line_indent': 0, 'header_bold': True, 'smart_align': False
+        'first_line_indent': 0, 'header_bold': True, 'smart_align': False,
+        'cell_margin_top_cm': 0.0, 'cell_margin_bottom_cm': 0.0,
+        'cell_margin_left_cm': 0.05, 'cell_margin_right_cm': 0.05,
     },
     'space_handling': 'remove_all',
     'first_line_bold': False,
@@ -1026,15 +854,6 @@ class CustomSettingsDialog(tk.Toplevel):
         )
         free_notice_label.pack(side='right', padx=(0, 6))
 
-        pro_info_link = tk.Label(
-            header, text='Pro 版详情', font=get_font(9),
-            bg=Theme.BG, fg=Theme.TEXT_MUTED, cursor='hand2', padx=8,
-        )
-        pro_info_link.pack(side='right', padx=(0, 6))
-        pro_info_link.bind('<Button-1>', lambda _event: ProInfoDialog(self))
-        pro_info_link.bind('<Enter>', lambda _event: pro_info_link.configure(fg=Theme.PRIMARY))
-        pro_info_link.bind('<Leave>', lambda _event: pro_info_link.configure(fg=Theme.TEXT_MUTED))
-
         self._build_preset_bar(self)
         
         # ===== 滚动区域 =====
@@ -1300,6 +1119,31 @@ class CustomSettingsDialog(tk.Toplevel):
         align_info_btn.bind('<Enter>', lambda e: align_info_btn.configure(fg=Theme.PRIMARY))
         align_info_btn.bind('<Leave>', lambda e: align_info_btn.configure(fg=Theme.TEXT_MUTED))
         align_info_btn.bind('<Button-1>', lambda e: self._show_table_align_info(e))
+
+        table_settings = self.settings.get('table', {})
+        row_tbl3 = tk.Frame(table_frame, bg=Theme.BG)
+        row_tbl3.pack(fill='x', pady=(8, 2))
+        tk.Label(
+            row_tbl3, text="单元格边距(cm):", font=get_font(11),
+            bg=Theme.BG, fg=Theme.TEXT_SECONDARY,
+        ).pack(side='left', padx=(6, 4))
+        self.table_cell_margin_vars = {}
+        for key, label, default in (
+            ('top', '上', 0.0), ('bottom', '下', 0.0),
+            ('left', '左', 0.05), ('right', '右', 0.05),
+        ):
+            tk.Label(
+                row_tbl3, text=f"{label}:", font=get_font(10),
+                bg=Theme.BG, fg=Theme.TEXT_MUTED,
+            ).pack(side='left', padx=(7, 1))
+            variable = tk.StringVar(
+                value=str(table_settings.get(f'cell_margin_{key}_cm', default))
+            )
+            self.table_cell_margin_vars[key] = variable
+            tk.Entry(
+                row_tbl3, textvariable=variable, font=get_font(10),
+                width=5, relief='solid', bd=1,
+            ).pack(side='left', padx=(0, 2))
         
         # --- 特殊选项 ---
         self._create_section(main, "✨ 特殊选项", pad_x)
@@ -2106,6 +1950,13 @@ class CustomSettingsDialog(tk.Toplevel):
             self.table_smart_align_var.set(
                 self.settings.get('table', {}).get('smart_align', False)
             )
+            for key, default in (
+                ('top', 0.0), ('bottom', 0.0),
+                ('left', 0.05), ('right', 0.05),
+            ):
+                self.table_cell_margin_vars[key].set(
+                    str(tbl.get(f'cell_margin_{key}_cm', default))
+                )
             
             # 特殊选项
             self.first_bold_var.set(s.get('first_line_bold', False))
@@ -2186,6 +2037,12 @@ class CustomSettingsDialog(tk.Toplevel):
         body_font = self.body_font_var.get()
         global_font_en = self.global_font_en_var.get()
         body_bold = self.body_bold_var.get()
+        table_cell_margins = {}
+        for key, variable in self.table_cell_margin_vars.items():
+            value = float(variable.get())
+            if not 0 <= value <= 10:
+                raise ValueError("单元格边距必须在 0 到 10 cm 之间")
+            table_cell_margins[key] = value
         page_number_style = next(
             (
                 key for key, label in PAGE_NUMBER_STYLE_OPTIONS.items()
@@ -2271,7 +2128,11 @@ class CustomSettingsDialog(tk.Toplevel):
                 'line_spacing': self._get_line_spacing(self.table_line_spacing_var, 22),
                 'first_line_indent': 0,
                 'header_bold': self.table_header_bold_var.get(),
-                'smart_align': self.table_smart_align_var.get()
+                'smart_align': self.table_smart_align_var.get(),
+                'cell_margin_top_cm': table_cell_margins['top'],
+                'cell_margin_bottom_cm': table_cell_margins['bottom'],
+                'cell_margin_left_cm': table_cell_margins['left'],
+                'cell_margin_right_cm': table_cell_margins['right'],
             },
             'space_handling': self.space_handling_var.get(),
             'first_line_bold': self.first_bold_var.get(),
@@ -2759,6 +2620,45 @@ def _parse_markdown_inline(text):
     return parts if parts else [(text, False)]
 
 
+_MD_HEADING_NUMBER_PATTERNS = (
+    _md_re.compile(r'^[一二三四五六七八九十百千万零〇两]+[、.．]\s*'),
+    _md_re.compile(r'^[（(][一二三四五六七八九十百千万零〇两]+[）)][、.．]?\s*'),
+    _md_re.compile(r'^[（(]\d{1,3}[）)][、.．]?\s*'),
+    _md_re.compile(r'^\d{1,3}(?:[.．]\d{1,3})+[、.．](?!\d)\s*'),
+    _md_re.compile(r'^\d{1,3}、\s*'),
+    _md_re.compile(r'^\d{1,3}[.．](?!\d)\s*'),
+)
+
+
+def _strip_markdown_heading_number(text):
+    """去掉 AI 已经写在 Markdown 标题里的公文序号，避免生成 DOCX 后重复。"""
+    text = (text or '').strip()
+    if not text:
+        return ''
+
+    def strip_plain(value):
+        current = value.strip()
+        for _ in range(4):
+            for pattern in _MD_HEADING_NUMBER_PATTERNS:
+                match = pattern.match(current)
+                if match:
+                    current = current[match.end():].lstrip()
+                    break
+            else:
+                break
+        return current
+
+    # AI 偶尔会写成 "## **一、标题**"，编号位于 Markdown 加粗标记里。
+    for marker in ('**', '__'):
+        if text.startswith(marker):
+            inner = text[len(marker):]
+            cleaned = strip_plain(inner)
+            if cleaned != inner.lstrip():
+                return marker + cleaned
+
+    return strip_plain(text)
+
+
 def _create_docx_from_markdown(title, md_text, output_path):
     """把 Markdown 文本解析为 docx。"""
     from docx import Document
@@ -2781,6 +2681,14 @@ def _create_docx_from_markdown(title, md_text, output_path):
 
     def cn(n):
         return cn_nums[n - 1] if 1 <= n <= len(cn_nums) else str(n)
+
+    def heading_text(content, level, number):
+        content = _strip_markdown_heading_number(content)
+        if level == 2:
+            return f"{cn(number)}、{content}"
+        if level == 3:
+            return f"（{cn(number)}）{content}"
+        return f"{number}. {content}"
 
     # 主标题
     title_added = False
@@ -2852,23 +2760,23 @@ def _create_docx_from_markdown(title, md_text, output_path):
                 else:
                     # 文档已有标题，把额外的 # 转成一级标题
                     h2_counter += 1
-                    add_para_with_inline(f"{cn(h2_counter)}、{content}")
+                    add_para_with_inline(heading_text(content, 2, h2_counter))
                     current_h2 = h2_counter
                 continue
             elif level == 2:
                 h2_counter += 1
                 current_h2 = h2_counter
-                add_para_with_inline(f"{cn(h2_counter)}、{content}")
+                add_para_with_inline(heading_text(content, 2, h2_counter))
                 continue
             elif level == 3:
                 h3_counters[current_h2] = h3_counters.get(current_h2, 0) + 1
                 current_h3 = h3_counters[current_h2]
-                add_para_with_inline(f"（{cn(current_h3)}）{content}")
+                add_para_with_inline(heading_text(content, 3, current_h3))
                 continue
             elif level >= 4:
                 key = (current_h2, current_h3)
                 h4_counters[key] = h4_counters.get(key, 0) + 1
-                add_para_with_inline(f"{h4_counters[key]}. {content}")
+                add_para_with_inline(heading_text(content, 4, h4_counters[key]))
                 continue
 
         # 列表项
@@ -3931,7 +3839,7 @@ class ResultPanel(tk.Frame):
 
         tk.Label(
             self.result_content,
-            text='本免费开源社区版仅限个人和非商业用途免费使用。Pro 版信息可在“关于”或“了解详情”中查看。',
+            text='本免费开源社区版仅限个人和非商业用途免费使用。',
             font=get_font(9), bg=Theme.CARD, fg=Theme.TEXT_MUTED, anchor='w',
         ).pack(fill='x', anchor='w', pady=(Theme.SPACE_SM, 0))
         
@@ -4103,9 +4011,7 @@ class DocFormatApp:
             bg=Theme.PRIMARY_LIGHT, fg=Theme.PRIMARY, padx=9, pady=4,
         ).pack(side='left', padx=(Theme.SPACE_SM, 0), pady=(5, 0))
 
-        self.community_notice_ticker = CommunityNoticeTicker(
-            content, show_pro_info=lambda: ProInfoDialog(self.root),
-        )
+        self.community_notice_ticker = CommunityNoticeTicker(content)
         self.community_notice_ticker.pack(fill='x', pady=(0, Theme.SPACE_LG))
         
         # ===== 2. 文件选择区 =====
@@ -4393,8 +4299,6 @@ class DocFormatApp:
 
     def _record_community_startup(self):
         """Persist only local display cadence; no network or usage analytics occur."""
-        if _is_pro_edition():
-            return
         try:
             config = load_custom_settings()
             state = config.setdefault('community_notice', {})
@@ -4410,7 +4314,7 @@ class DocFormatApp:
 
     def _maybe_show_community_notice(self):
         """Show the optional community notice only when the UI is idle."""
-        if self._processing_active or _is_pro_edition():
+        if self._processing_active:
             return
         state = self._community_notice_state or {}
         force_show = bool(state.pop('show_on_next_startup', False))
