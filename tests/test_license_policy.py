@@ -30,12 +30,12 @@ def test_license_history_keeps_the_mit_boundary_explicit():
     assert "PolyForm Noncommercial License 1.0.0" in history
 
 
-def test_application_and_build_versions_mark_the_first_polyform_release():
+def test_application_and_build_versions_match_the_current_release():
     gui_source = _read("docformat_gui.py")
     build_source = _read("build.py")
 
-    assert "__version__ = '1.8.8.3'" in gui_source
-    assert 'VERSION = "1.8.8.3"' in build_source
+    assert "__version__ = '1.8.8.4'" in gui_source
+    assert 'VERSION = "1.8.8.4"' in build_source
     assert "LICENSE_NAME = 'PolyForm Noncommercial License 1.0.0'" in gui_source
     assert "LICENSE_URL = 'https://polyformproject.org/licenses/noncommercial/1.0.0'" in gui_source
 

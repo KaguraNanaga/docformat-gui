@@ -32,7 +32,7 @@ _configure_console_encoding()
 # 配置
 APP_NAME = "公文格式处理工具"
 APP_NAME_EN = "DocFormatter"
-VERSION = "1.8.8.3"
+VERSION = "1.8.8.4"
 MAIN_SCRIPT = "docformat_gui.py"
 MACOS_APP_BUNDLE_NAME = os.environ.get("MACOS_APP_BUNDLE_NAME", "公文格式处理助手").strip()
 
@@ -631,6 +631,14 @@ def create_release_notes():
 - **macOS (Apple Silicon)**: `docformat_macos_apple_silicon.dmg` - 双击挂载后拖入应用程序文件夹
 
 ## 功能
+
+### v1.8.8.4 更新
+
+- ✅ 界面升级为统一的暖米色现代布局，并完善高 DPI 与窗口适配
+- ✅ 新增自定义段落类型与本地版式规则、从样例学习样式
+- ✅ 增强自动编号、表格、页面、页眉页脚和页码排版能力
+- ✅ 支持粘贴文本或 Markdown 生成 Word
+- ✅ 修复文件选择后无法开始处理，并显示批量文件数量与清单
 
 - ✅ 一键处理（标点修复 + 格式统一）
 - ✅ 格式诊断

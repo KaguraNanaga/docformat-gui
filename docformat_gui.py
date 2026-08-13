@@ -138,7 +138,7 @@ except Exception as e:
     _DND_DISABLED_REASON = f"拖拽运行库不可用：{e}"
     _DND_AVAILABLE = False
 
-__version__ = '1.8.8.3'
+__version__ = '1.8.8.4'
 
 LICENSE_NAME = 'PolyForm Noncommercial License 1.0.0'
 LICENSE_URL = 'https://polyformproject.org/licenses/noncommercial/1.0.0'
