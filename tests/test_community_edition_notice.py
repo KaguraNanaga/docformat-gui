@@ -18,8 +18,8 @@ def test_notice_schedule_uses_the_declared_community_edition_launches():
 
 def test_notice_only_contains_the_free_community_disclosure():
     assert gui.COMMUNITY_NOTICE_TEXT == (
-        "本免费开源社区版仅限个人和非商业用途免费使用；未经许可，不得销售、收费分发或用于其他商业目的。"
-        "如付费购买到本社区版本，请要求退款并举报商家。"
+        "本免费开源版仅限个人和非商业用途免费使用；未经许可，不得销售、收费分发或用于其他商业目的。"
+        "如付费购买到本免费开源版本，请要求退款并举报商家。"
     )
 
 
@@ -48,8 +48,8 @@ def test_repository_does_not_ship_commercial_promotion_surfaces():
 def test_ui_keeps_the_community_notice_and_about_dialog():
     source = (PROJECT_ROOT / "docformat_gui.py").read_text(encoding="utf-8")
     for text in (
-        "继续使用免费开源社区版",
-        "此版本为免费开源社区版",
+        "继续使用免费开源版",
+        "此版本为免费开源版",
         "CommunityNoticeTicker",
         "AboutDialog",
     ):

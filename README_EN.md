@@ -122,7 +122,7 @@ If this tool helps you, or if you find any bugs, please feel free to contact me:
 
 ## License
 
-Starting with `v1.8.8.3`, this source-available community edition is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). It is free for personal and noncommercial purposes. Commercial sale, paid redistribution, and other commercial uses require separate permission.
+Starting with `v1.8.8.3`, this free and open-source edition is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). It is free for personal and noncommercial purposes. Commercial sale, paid redistribution, and other commercial uses require separate permission.
 
 Versions up to and including `v1.8.8.2` remain under the MIT License that accompanied those releases. See [License History](LICENSE-HISTORY.md).
 

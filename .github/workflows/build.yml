@@ -349,7 +349,7 @@ jobs:
             - ✅ 支持 GB/T 公文标准
             - ✅ 中文禁则、图片附件保护和标题中英文字体设置
 
-            v1.8.8.3 起，免费开源社区版依据 PolyForm Noncommercial License 1.0.0 提供，仅限个人和非商业用途免费使用。
+            v1.8.8.3 起，免费开源版依据 PolyForm Noncommercial License 1.0.0 提供，仅限个人和非商业用途免费使用。
             
           files: |
             dist/docformat_windows.exe

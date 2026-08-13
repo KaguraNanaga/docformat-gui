@@ -30,17 +30,31 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from docx import Document
-from docx.shared import Pt, Cm, Twips, RGBColor
+from docx.shared import Pt, Cm, Mm, Twips, RGBColor
+from docx.enum.section import WD_ORIENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.table import WD_ROW_HEIGHT_RULE
 from docx.table import Table
 from docx.text.paragraph import Paragraph
+from docx.text.run import Run
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 try:
     from scripts.east_asian_typography import apply_chinese_line_break_rules
+    from scripts.layout_rules import (
+        ParagraphRuleError,
+        compile_rule_set,
+        custom_para_type,
+        match_custom_type,
+    )
 except ModuleNotFoundError:  # Support direct execution from scripts/.
     from east_asian_typography import apply_chinese_line_break_rules
+    from layout_rules import (
+        ParagraphRuleError,
+        compile_rule_set,
+        custom_para_type,
+        match_custom_type,
+    )
 
 logger = logging.getLogger('docformat.formatter')
 DEFAULT_PAGE_NUMBER_OFFSET_MM = 10
@@ -320,9 +334,12 @@ PRESETS = {
         'page_number_font': '宋体',
         'page_number_size': 14,
         'page_number_style': 'dash',
+        'page_number_prefix': '— ',
+        'page_number_suffix': ' —',
         'page_number_position': 'outside',
         'page_number_offset_mm': DEFAULT_PAGE_NUMBER_OFFSET_MM,
         'replace_existing_page_number': True,
+        'hide_last_page_number': False,
         'page': {'top': 3.7, 'bottom': 3.5, 'left': 2.8, 'right': 2.6},
         # 主标题：二号方正小标宋简体，居中
         'title': {
@@ -553,6 +570,49 @@ def _set_table_cell_margins(table, top_cm=0.0, bottom_cm=0.0, left_cm=0.05, righ
     _set_side('right', right_cm)
 
 
+def _set_cell_margins(cell, top_cm=0.0, bottom_cm=0.0, left_cm=0.05, right_cm=0.05):
+    """Write an explicit cell margin override understood by Word and WPS."""
+    tc_pr = cell._tc.get_or_add_tcPr()
+    cell_mar = tc_pr.find(qn('w:tcMar'))
+    if cell_mar is None:
+        cell_mar = OxmlElement('w:tcMar')
+        tc_pr.append(cell_mar)
+
+    def _set_side(tag, cm_value):
+        node = cell_mar.find(qn(f'w:{tag}'))
+        if node is None:
+            node = OxmlElement(f'w:{tag}')
+            cell_mar.append(node)
+        node.set(qn('w:type'), 'dxa')
+        node.set(qn('w:w'), str(int(Cm(cm_value).twips)))
+
+    _set_side('top', top_cm)
+    _set_side('bottom', bottom_cm)
+    _set_side('left', left_cm)
+    _set_side('right', right_cm)
+
+
+def _clear_cell_margins(cell):
+    """Remove a cell override so it inherits the table-level margins."""
+    tc_pr = cell._tc.get_or_add_tcPr()
+    cell_mar = tc_pr.find(qn('w:tcMar'))
+    if cell_mar is not None:
+        tc_pr.remove(cell_mar)
+
+
+def _set_cell_fit_text(cell, enabled):
+    """Toggle the Word/WPS ``Fit text`` option for one cell."""
+    tc_pr = cell._tc.get_or_add_tcPr()
+    fit_text = tc_pr.find(qn('w:tcFitText'))
+    if enabled:
+        if fit_text is None:
+            fit_text = OxmlElement('w:tcFitText')
+            tc_pr.append(fit_text)
+        fit_text.set(qn('w:val'), '1')
+    elif fit_text is not None:
+        tc_pr.remove(fit_text)
+
+
 def _set_table_width_percent(table, percent=100):
     percent = max(1, min(100, int(percent)))
     tbl = table._tbl
@@ -722,6 +782,39 @@ def _is_table_unit(text):
     if len(text) > 20:
         return False
     return re.match(r'^单位\s*[:：]', text) is not None
+
+
+def _is_table_lead_in(text):
+    """Return whether a body paragraph introduces the following table."""
+    value = str(text or '').strip()
+    if not value or len(value) > 240:
+        return False
+    return re.search(
+        r'(?:具体|有关|详细|变更|统计|汇总)?(?:情况|内容|事项)?(?:如下|见下表)\s*[：:]?$',
+        value,
+    ) is not None
+
+
+def _protect_table_lead_in_alignment(paragraph, body_fmt, line_spacing_pt):
+    """Keep a ``……如下：`` lead-in in ordinary body formatting."""
+    align_map = {
+        'center': WD_ALIGN_PARAGRAPH.CENTER,
+        'left': WD_ALIGN_PARAGRAPH.LEFT,
+        'right': WD_ALIGN_PARAGRAPH.RIGHT,
+        'justify': WD_ALIGN_PARAGRAPH.JUSTIFY,
+    }
+    paragraph.alignment = align_map.get(
+        body_fmt.get('align', 'justify'), WD_ALIGN_PARAGRAPH.JUSTIFY,
+    )
+    pf = paragraph.paragraph_format
+    pf.left_indent = Pt(0)
+    pf.right_indent = Pt(0)
+    pf.first_line_indent = Pt(float(body_fmt.get('indent', 0) or 0))
+    pf.space_before = Pt(float(body_fmt.get('space_before', 0) or 0))
+    pf.space_after = Pt(float(body_fmt.get('space_after', 0) or 0))
+    spacing = float(body_fmt.get('line_spacing', line_spacing_pt) or line_spacing_pt)
+    pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    pf.line_spacing = Pt(spacing)
 
 
 def _set_cell_borders(cell, size_pt=0.5, color="000000"):
@@ -1008,6 +1101,11 @@ def detect_para_type(text, index, total, alignment, all_texts, all_texts_index=N
     # 支持多种日期格式
     if _is_date_text(text, date_patterns):
         return 'date'
+
+    # ``……如下：`` immediately introducing a table remains body text even
+    # when a nearby signature/date would otherwise make the tail heuristic fire.
+    if _is_table_lead_in(text):
+        return 'body'
     
     # ===== 落款单位 =====
     # 判断逻辑：在文档后部，短文本，且下一段是日期或者是文档末尾附近
@@ -1086,6 +1184,51 @@ def detect_para_type(text, index, total, alignment, all_texts, all_texts_index=N
                 return 'title'
     
     # ===== 其他都是正文 =====
+    return 'body'
+
+
+def _looks_like_source_note(text):
+    """Detect a parenthesized source/note paragraph, excluding list markers."""
+    value = str(text or '').strip()
+    if len(value) < 6 or len(value) > 120:
+        return False
+    pairs = {'（': '）', '(': ')'}
+    if value[0] not in pairs or value[-1] != pairs[value[0]]:
+        return False
+    inner = value[1:-1].strip()
+    return re.fullmatch(r'[一二三四五六七八九十]+|\d+', inner) is None
+
+
+def detect_generic_para_type(
+    paragraph, text, index, total, all_texts, *, all_texts_index=None,
+    prev_para_type=None,
+):
+    """Classify reusable document roles without official-document-only semantics."""
+    style = getattr(paragraph, 'style', None)
+    style_name = str(getattr(style, 'name', '') or '').lower().replace(' ', '')
+    style_id = str(getattr(style, 'style_id', '') or '').lower().replace(' ', '')
+    combined = f'{style_name}|{style_id}'
+    style_roles = (
+        ('heading1', ('heading1', '标题1', '标题一')),
+        ('heading2', ('heading2', '标题2', '标题二')),
+        ('heading3', ('heading3', '标题3', '标题三')),
+        ('heading4', ('heading4', '标题4', '标题四')),
+    )
+    for role, markers in style_roles:
+        if any(marker in combined for marker in markers):
+            return role
+    if style_id == 'title' or style_name in {'title', '标题', '文档标题'}:
+        return 'title'
+    if re.match(r'^第[一二三四五六七八九十百零〇\d]+[章节篇部]', text) and len(text) < 40:
+        return 'heading1'
+    detected = detect_para_type(
+        text, index, total, paragraph.paragraph_format.alignment, all_texts,
+        all_texts_index=all_texts_index, prev_para_type=prev_para_type,
+    )
+    if detected in {'title', 'heading1', 'heading2', 'heading3', 'heading4'}:
+        return detected
+    if _looks_like_source_note(text):
+        return 'source_note'
     return 'body'
 
 
@@ -1365,6 +1508,14 @@ def _compact_empty_paragraph(para):
     pf.line_spacing = Pt(1)
 
 
+def _preserve_generic_blank_paragraph(para, line_spacing_pt=18):
+    """Keep an intentional blank line in a general-purpose document."""
+    _set_paragraph_spacing_points(para, 0, 0)
+    pf = para.paragraph_format
+    pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    pf.line_spacing = Pt(max(1.0, float(line_spacing_pt or 18)))
+
+
 def _format_structural_blank_paragraph(para, line_spacing_pt=28):
     """Format the intentional blank line used between document sections.
 
@@ -1448,7 +1599,24 @@ def set_font(run, font_cn, font_en, size, bold=False, revision_mode=False):
         _add_rpr_change(run, orig_rpr)
 
 
-def format_paragraph(para, fmt, para_type, line_spacing_pt=28, first_line_bold=False, revision_mode=False, bold_serial=True):
+def _strip_leading_whitespace_runs(para):
+    """Remove literal leading whitespace when indentation comes from a style."""
+    for run in para.runs:
+        text = run.text
+        if not text:
+            continue
+        stripped = text.lstrip(" \u3000\t")
+        if stripped:
+            if stripped != text:
+                run.text = stripped
+            return
+        run.text = ''
+
+
+def format_paragraph(
+    para, fmt, para_type, line_spacing_pt=28, first_line_bold=False,
+    revision_mode=False, bold_serial=True, preserve_inline_emphasis=False,
+):
     """格式化段落
     
     fmt 支持的字段:
@@ -1551,6 +1719,26 @@ def format_paragraph(para, fmt, para_type, line_spacing_pt=28, first_line_bold=F
     has_media = _paragraph_has_media(para)
     if has_media:
         _set_media_paragraph_single_spacing(para)
+
+    def _apply_run_font(run, bold):
+        saved_bold = run.font.bold
+        saved_italic = run.font.italic
+        saved_underline = run.font.underline
+        saved_color = run.font.color.rgb
+        set_font(
+            run, fmt['font_cn'], fmt['font_en'], fmt['size'], bold,
+            revision_mode=revision_mode,
+        )
+        if not preserve_inline_emphasis:
+            return
+        if saved_bold is True:
+            run.font.bold = True
+        if saved_italic is True:
+            run.font.italic = True
+        if saved_underline is True:
+            run.font.underline = True
+        if saved_color is not None:
+            run.font.color.rgb = saved_color
     
     # 字体 - 支持首句加粗
     if first_line_bold and para_type == 'body':
@@ -1567,15 +1755,15 @@ def format_paragraph(para, fmt, para_type, line_spacing_pt=28, first_line_bold=F
                 para._p.remove(run._r)
             
             run1 = para.add_run(first_part)
-            set_font(run1, fmt['font_cn'], fmt['font_en'], fmt['size'], bold=True, revision_mode=revision_mode)
+            _apply_run_font(run1, True)
             
             if rest_part:
                 run2 = para.add_run(rest_part)
-                set_font(run2, fmt['font_cn'], fmt['font_en'], fmt['size'], fmt.get('bold', False), revision_mode=revision_mode)
+                _apply_run_font(run2, fmt.get('bold', False))
         else:
             # 没找到中文句号，正常处理
             for run in para.runs:
-                set_font(run, fmt['font_cn'], fmt['font_en'], fmt['size'], fmt.get('bold', False), revision_mode=revision_mode)
+                _apply_run_font(run, fmt.get('bold', False))
     else:
         # 正文里的序列词加粗前缀
         if bold_serial and para_type == 'body' and not has_media:
@@ -1596,19 +1784,76 @@ def format_paragraph(para, fmt, para_type, line_spacing_pt=28, first_line_bold=F
                 for run in list(para.runs):
                     para._p.remove(run._r)
                 run1 = para.add_run(lead)
-                set_font(run1, fmt['font_cn'], fmt['font_en'], fmt['size'], bold=True, revision_mode=revision_mode)
+                _apply_run_font(run1, True)
                 if rest:
                     run2 = para.add_run(rest)
-                    set_font(run2, fmt['font_cn'], fmt['font_en'], fmt['size'], fmt.get('bold', False), revision_mode=revision_mode)
+                    _apply_run_font(run2, fmt.get('bold', False))
                 return
 
         # 正常处理
         for run in para.runs:
-            set_font(run, fmt['font_cn'], fmt['font_en'], fmt['size'], fmt.get('bold', False), revision_mode=revision_mode)
+            _apply_run_font(run, fmt.get('bold', False))
 
     # 修订模式：若段落格式有改动则嵌入 pPrChange
     if revision_mode and para._p.xml != orig_ppr_xml:
         _add_ppr_change(para, orig_ppr)
+
+
+def _rgb_from_hex(value, fallback='000000'):
+    color = str(value or fallback).strip().lstrip('#')
+    if len(color) != 6 or not re.fullmatch(r'[0-9a-fA-F]{6}', color):
+        color = fallback
+    return RGBColor(int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16))
+
+
+def _apply_custom_prefix_format(para, prefix, base_format, *, revision_mode=False):
+    """Apply a custom inline style to a structural prefix such as ``第一条``."""
+    if not isinstance(prefix, dict):
+        return False
+    pattern = str(prefix.get('pattern') or '')
+    prefix_format = prefix.get('format')
+    if not pattern or not isinstance(prefix_format, dict):
+        return False
+    raw_text = para.text or ''
+    leading_length = len(raw_text) - len(raw_text.lstrip())
+    match = re.match(pattern, raw_text.lstrip())
+    if not match or match.end() <= 0:
+        return False
+    remaining = leading_length + match.end()
+    prefix_runs = []
+    for run in list(para.runs):
+        run_text = run.text or ''
+        if remaining <= 0:
+            break
+        if not run_text:
+            continue
+        if len(run_text) <= remaining:
+            prefix_runs.append(run)
+            remaining -= len(run_text)
+            continue
+        tail_xml = deepcopy(run._r)
+        run.text = run_text[:remaining]
+        tail_run = Run(tail_xml, run._parent)
+        tail_run.text = run_text[remaining:]
+        run._r.addnext(tail_xml)
+        prefix_runs.append(run)
+        remaining = 0
+        break
+    if not prefix_runs:
+        return False
+    font_cn = prefix_format.get('font_cn', base_format.get('font_cn', '宋体'))
+    font_en = prefix_format.get('font_en', base_format.get('font_en', 'Times New Roman'))
+    size = prefix_format.get('size', base_format.get('size', 16))
+    bold = prefix_format.get('bold', base_format.get('bold', False))
+    for run in prefix_runs:
+        set_font(run, font_cn, font_en, size, bold, revision_mode=revision_mode)
+        if 'italic' in prefix_format:
+            run.font.italic = bool(prefix_format['italic'])
+        if 'underline' in prefix_format:
+            run.font.underline = bool(prefix_format['underline'])
+        if prefix_format.get('color'):
+            run.font.color.rgb = _rgb_from_hex(prefix_format['color'])
+    return True
 
 
 def add_page_number(
@@ -1616,9 +1861,13 @@ def add_page_number(
     font_name="宋体",
     font_size=14,
     style="dash",
+    prefix="— ",
+    suffix=" —",
     position="outside",
     offset_from_text_mm=DEFAULT_PAGE_NUMBER_OFFSET_MM,
+    footer_distance_cm=None,
     replace_existing=True,
+    hide_last_page=False,
 ):
     """按自定义样式添加页码。
 
@@ -1674,9 +1923,17 @@ def add_page_number(
 
     for section in doc.sections:
         section.odd_and_even_pages_header_footer = use_even_footer
-        bottom_margin_cm = section.bottom_margin.cm if section.bottom_margin else 3.5
-        footer_distance_cm = max(0.3, bottom_margin_cm - float(offset_from_text_mm) / 10)
-        section.footer_distance = Cm(footer_distance_cm)
+        if footer_distance_cm is None:
+            bottom_margin_cm = section.bottom_margin.cm if section.bottom_margin else 3.5
+            resolved_footer_distance_cm = max(
+                0.3, bottom_margin_cm - float(offset_from_text_mm) / 10
+            )
+        else:
+            try:
+                resolved_footer_distance_cm = max(0.0, float(footer_distance_cm))
+            except (TypeError, ValueError):
+                resolved_footer_distance_cm = 2.5
+        section.footer_distance = Cm(resolved_footer_distance_cm)
 
         odd_footer = section.footer
         even_footer = section.even_page_footer
@@ -1689,25 +1946,70 @@ def add_page_number(
             for para in f.paragraphs:
                 para.clear()
 
-        def _add_field(paragraph, instruction):
-            begin_run = paragraph.add_run()
-            begin = OxmlElement('w:fldChar')
-            begin.set(qn('w:fldCharType'), 'begin')
-            begin_run._r.append(begin)
-            set_font(begin_run, font_name, font_name, font_size, bold=False)
+        def _add_field_char(paragraph, field_type, *, dirty=False):
+            run = paragraph.add_run()
+            field_char = OxmlElement('w:fldChar')
+            field_char.set(qn('w:fldCharType'), field_type)
+            if dirty:
+                field_char.set(qn('w:dirty'), 'true')
+            run._r.append(field_char)
+            set_font(run, font_name, font_name, font_size, bold=False)
+            return run
 
-            instruction_run = paragraph.add_run()
+        def _add_instruction_text(paragraph, text):
+            run = paragraph.add_run()
             instruction_text = OxmlElement('w:instrText')
             instruction_text.set(qn('xml:space'), 'preserve')
-            instruction_text.text = instruction
-            instruction_run._r.append(instruction_text)
-            set_font(instruction_run, font_name, font_name, font_size, bold=False)
+            instruction_text.text = text
+            run._r.append(instruction_text)
+            set_font(run, font_name, font_name, font_size, bold=False)
+            return run
 
-            end_run = paragraph.add_run()
-            end = OxmlElement('w:fldChar')
-            end.set(qn('w:fldCharType'), 'end')
-            end_run._r.append(end)
-            set_font(end_run, font_name, font_name, font_size, bold=False)
+        def _add_field(paragraph, instruction):
+            _add_field_char(paragraph, 'begin', dirty=True)
+            _add_instruction_text(paragraph, instruction)
+            _add_field_char(paragraph, 'end')
+
+        def _add_nested_instruction_field(paragraph, instruction, result_text="1"):
+            _add_field_char(paragraph, 'begin', dirty=True)
+            _add_instruction_text(paragraph, instruction)
+            _add_field_char(paragraph, 'separate')
+            result_run = paragraph.add_run(str(result_text))
+            set_font(result_run, font_name, font_name, font_size, bold=False)
+            _add_field_char(paragraph, 'end')
+
+        def _page_content_items():
+            if style == "dash":
+                return (("text", "— "), ("field", " PAGE "), ("text", " —"))
+            if style == "page_text":
+                return (("text", "第 "), ("field", " PAGE "), ("text", " 页"))
+            if style == "page_total":
+                return (("field", " PAGE "), ("text", " / "), ("field", " NUMPAGES "))
+            if style == "custom":
+                items = []
+                if prefix:
+                    items.append(("text", str(prefix)))
+                items.append(("field", " PAGE "))
+                if suffix:
+                    items.append(("text", str(suffix)))
+                return tuple(items)
+            return (("field", " PAGE "),)
+
+        def _add_hide_last_page_field(paragraph):
+            _add_field_char(paragraph, 'begin', dirty=True)
+            _add_instruction_text(paragraph, ' IF ')
+            _add_nested_instruction_field(paragraph, ' PAGE ', '1')
+            _add_instruction_text(paragraph, ' = ')
+            _add_nested_instruction_field(paragraph, ' NUMPAGES ', '1')
+            _add_instruction_text(paragraph, ' "" "')
+            for item_type, value in _page_content_items():
+                if item_type == 'field':
+                    _add_nested_instruction_field(paragraph, value, '1')
+                else:
+                    _add_instruction_text(paragraph, value.replace('"', '""'))
+            _add_instruction_text(paragraph, '" ')
+            _add_field_char(paragraph, 'separate')
+            _add_field_char(paragraph, 'end')
 
         def _build_footer_line(footer, align):
             if footer.paragraphs:
@@ -1722,7 +2024,9 @@ def add_page_number(
             para.paragraph_format.space_before = Pt(0)
             para.paragraph_format.space_after = Pt(0)
 
-            if style == "dash":
+            if hide_last_page:
+                _add_hide_last_page_field(para)
+            elif style == "dash":
                 run = para.add_run("— ")
                 set_font(run, font_name, font_name, font_size, bold=False)
                 _add_field(para, " PAGE ")
@@ -1739,8 +2043,24 @@ def add_page_number(
                 run = para.add_run(" / ")
                 set_font(run, font_name, font_name, font_size, bold=False)
                 _add_field(para, " NUMPAGES ")
+            elif style == "custom":
+                if prefix:
+                    run = para.add_run(str(prefix))
+                    set_font(run, font_name, font_name, font_size, bold=False)
+                _add_field(para, " PAGE ")
+                if suffix:
+                    run = para.add_run(str(suffix))
+                    set_font(run, font_name, font_name, font_size, bold=False)
             else:
                 _add_field(para, " PAGE ")
+
+        if hide_last_page:
+            settings_el = doc.settings._element
+            update_fields = settings_el.find(qn('w:updateFields'))
+            if update_fields is None:
+                update_fields = OxmlElement('w:updateFields')
+                settings_el.append(update_fields)
+            update_fields.set(qn('w:val'), 'true')
 
         if position == "outside":
             _build_footer_line(odd_footer, WD_ALIGN_PARAGRAPH.RIGHT)
@@ -1755,6 +2075,208 @@ def add_page_number(
             _build_footer_line(odd_footer, align)
             if section.different_first_page_header_footer:
                 _build_footer_line(first_footer, align)
+
+
+A4_WIDTH_MM = 210.0
+A4_HEIGHT_MM = 297.0
+
+
+def _apply_page_geometry(section, page):
+    """Apply configured paper size and portrait/landscape orientation."""
+    if bool(page.get('preserve_paper_size', False)):
+        return
+    try:
+        width_mm = max(50.0, float(page.get('width_mm', A4_WIDTH_MM)))
+        height_mm = max(50.0, float(page.get('height_mm', A4_HEIGHT_MM)))
+    except (TypeError, ValueError):
+        width_mm, height_mm = A4_WIDTH_MM, A4_HEIGHT_MM
+    orientation = str(page.get('orientation') or '').strip().lower()
+    if orientation in {'landscape', 'horizontal', '横向'}:
+        landscape = True
+    elif orientation in {'portrait', 'vertical', '纵向'}:
+        landscape = False
+    else:
+        try:
+            landscape = section.page_width > section.page_height
+        except (TypeError, AttributeError):
+            landscape = False
+    if landscape:
+        width_mm, height_mm = max(width_mm, height_mm), min(width_mm, height_mm)
+        section.orientation = WD_ORIENT.LANDSCAPE
+    else:
+        width_mm, height_mm = min(width_mm, height_mm), max(width_mm, height_mm)
+        section.orientation = WD_ORIENT.PORTRAIT
+    section.page_width = Mm(width_mm)
+    section.page_height = Mm(height_mm)
+
+
+_CHINESE_NUMERAL_DIGITS = '零一二三四五六七八九'
+
+
+def _chinese_counter(value):
+    value = int(value)
+    if value <= 0:
+        return str(value)
+    if value < 10:
+        return _CHINESE_NUMERAL_DIGITS[value]
+    if value == 10:
+        return '十'
+    if value < 20:
+        return '十' + _CHINESE_NUMERAL_DIGITS[value % 10]
+    if value < 100:
+        tens, ones = divmod(value, 10)
+        return _CHINESE_NUMERAL_DIGITS[tens] + '十' + (
+            _CHINESE_NUMERAL_DIGITS[ones] if ones else ''
+        )
+    return str(value)
+
+
+def _format_counter(value, num_fmt):
+    fmt = str(num_fmt or 'decimal').strip()
+    if fmt in {'chineseCounting', 'chineseCountingThousand', 'ideographDigital'}:
+        return _chinese_counter(value)
+    if fmt == 'lowerLetter':
+        return chr(ord('a') + (int(value) - 1) % 26)
+    if fmt == 'upperLetter':
+        return chr(ord('A') + (int(value) - 1) % 26)
+    return str(value)
+
+
+def _numbering_element(doc):
+    try:
+        package = doc.part.package
+    except AttributeError:
+        return None
+    for part in package.iter_parts():
+        if str(part.partname).endswith('numbering.xml'):
+            return getattr(part, 'element', None)
+    return None
+
+
+def _numbering_level_maps(doc):
+    """Parse numbering definitions into ``numId -> level metadata``."""
+    element = _numbering_element(doc)
+    if element is None:
+        return {}
+    abstract = {}
+    for abstract_num in element.findall(qn('w:abstractNum')):
+        abstract_id = abstract_num.get(qn('w:abstractNumId'))
+        levels = {}
+        for level in abstract_num.findall(qn('w:lvl')):
+            ilvl = level.get(qn('w:ilvl')) or '0'
+            text_el = level.find(qn('w:lvlText'))
+            fmt_el = level.find(qn('w:numFmt'))
+            start_el = level.find(qn('w:start'))
+            levels[ilvl] = (
+                text_el.get(qn('w:val')) if text_el is not None else '%1.',
+                fmt_el.get(qn('w:val')) if fmt_el is not None else 'decimal',
+                int(start_el.get(qn('w:val')))
+                if start_el is not None and start_el.get(qn('w:val')) else 1,
+            )
+        if abstract_id is not None:
+            abstract[abstract_id] = levels
+    maps = {}
+    for num in element.findall(qn('w:num')):
+        num_id = num.get(qn('w:numId'))
+        ref = num.find(qn('w:abstractNumId'))
+        abstract_id = ref.get(qn('w:val')) if ref is not None else None
+        if num_id is not None and abstract_id in abstract:
+            maps[num_id] = abstract[abstract_id]
+    return maps
+
+
+def _iter_table_cell_paragraphs(table, _seen_cells=None):
+    seen = _seen_cells if _seen_cells is not None else set()
+    paragraphs = []
+    for row in table.rows:
+        for cell in row.cells:
+            marker = id(cell._tc)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            paragraphs.extend(cell.paragraphs)
+            for nested in cell.tables:
+                paragraphs.extend(_iter_table_cell_paragraphs(nested, seen))
+    return paragraphs
+
+
+def _iter_numbered_paragraphs(doc):
+    paragraphs = list(doc.paragraphs)
+    for table in doc.tables:
+        paragraphs.extend(_iter_table_cell_paragraphs(table))
+    return paragraphs
+
+
+_TYPED_LIST_MARKER_RE = re.compile(
+    r'^\s*(?:第[一二三四五六七八九十百零〇\d]+[章节篇部]|'
+    r'[一二三四五六七八九十百零〇]+、|（[一二三四五六七八九十]+）|'
+    r'（\d+）|\d+[.、．])\s*'
+)
+
+
+def _strip_typed_list_marker(para):
+    match = _TYPED_LIST_MARKER_RE.match(str(para.text or ''))
+    if not match or not match.group(0).strip():
+        return False
+    remaining = match.end()
+    for run in para.runs:
+        if remaining <= 0:
+            break
+        value = str(run.text or '')
+        if len(value) <= remaining:
+            run.text = ''
+            remaining -= len(value)
+        else:
+            run.text = value[remaining:]
+            remaining = 0
+    return True
+
+
+def normalize_automatic_numbering(doc):
+    """Convert resolvable Word numbering to visible text and remove ``numPr``."""
+    maps = _numbering_level_maps(doc)
+    counters = {}
+    converted = 0
+    for para in _iter_numbered_paragraphs(doc):
+        ppr = para._p.pPr
+        if ppr is None or ppr.numPr is None:
+            continue
+        num_pr = ppr.numPr
+        num_id = str(getattr(num_pr.numId, 'val', '') or '')
+        ilvl = str(getattr(num_pr.ilvl, 'val', '0') or '0')
+        converted_number = False
+        if num_id and num_id != '0' and num_id in maps:
+            level_info = maps[num_id].get(ilvl) or maps[num_id].get('0')
+            if level_info is not None:
+                lvl_text, num_fmt, start = level_info
+                levels = counters.setdefault(num_id, {})
+                current = levels.get(ilvl, start - 1) + 1
+                levels[ilvl] = current
+                for key in list(levels):
+                    if int(key) > int(ilvl):
+                        del levels[key]
+                label = lvl_text
+                for placeholder in re.findall(r'%(\d)', lvl_text):
+                    level_no = str(int(placeholder) - 1)
+                    fallback = maps[num_id].get(level_no, ('%1', 'decimal', 1))
+                    value = levels.get(level_no, fallback[2])
+                    label = label.replace(
+                        f'%{placeholder}', _format_counter(value, fallback[1] or num_fmt), 1,
+                    )
+                if label and re.search(r'%\d', lvl_text):
+                    _strip_typed_list_marker(para)
+                    if para.runs:
+                        para.runs[0].text = label + str(para.runs[0].text or '')
+                    else:
+                        para.add_run(label)
+                    converted_number = True
+        if converted_number:
+            ppr.remove(num_pr)
+            converted += 1
+        elif _TYPED_LIST_MARKER_RE.match(str(para.text or '')):
+            ppr.remove(num_pr)
+            converted += 1
+    return converted
 
 
 def format_document(input_path, output_path, preset_name='official', progress_callback=None, revision_mode=False, bold_serial=True, custom_settings=None):
@@ -1789,6 +2311,14 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
     
     logger.info(f'Input: {input_path}')
     preset = _adapt_fonts_for_platform(preset)
+    generic_mode = str(preset.get('layout_mode') or 'official').strip().lower() == 'generic'
+    custom_types = {}
+    paragraph_rules = []
+    if generic_mode:
+        try:
+            custom_types, paragraph_rules = compile_rule_set(preset)
+        except ParagraphRuleError as exc:
+            logger.warning('自定义段落规则无效，本次已跳过：%s', exc)
     
     # 获取首句加粗选项
     first_line_bold = preset.get('first_line_bold', False)
@@ -1797,6 +2327,9 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
     bold_serial = preset.get('bold_serial', bold_serial)
     
     doc = Document(input_path)
+    normalized = normalize_automatic_numbering(doc)
+    if normalized:
+        logger.info('已将 %s 段自动编号固化为可见文字', normalized)
 
     # v1.8.0: 强力清洗模式（如开启，在格式化前先深度清理段落属性）
     if preset.get('deep_clean', False):
@@ -1815,29 +2348,47 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
         if progress_callback:
             progress_callback(current, total, stage)
     
-    # 1. 移除背景
-    logger.info('1. Removing background...')
-    _progress(0, 100, '移除背景...')
-    remove_background(doc)
+    # 1. 通用文档默认保留局部底纹和高亮。
+    if preset.get('remove_background', not generic_mode):
+        logger.info('1. Removing background...')
+        _progress(0, 100, '移除背景...')
+        remove_background(doc)
+    else:
+        logger.info('1. Preserving background and highlights...')
+        _progress(0, 100, '保留底纹与高亮...')
     
     # 2. 设置页面边距
     logger.info('2. Setting page margins...')
     _progress(5, 100, '设置页面边距...')
     page = preset['page']
     for section in doc.sections:
+        _apply_page_geometry(section, page)
         section.top_margin = Cm(page['top'])
         section.bottom_margin = Cm(page['bottom'])
         section.left_margin = Cm(page['left'])
         section.right_margin = Cm(page['right'])
+        try:
+            section.header_distance = Cm(max(0.0, float(page.get('header_distance_cm', 1.5))))
+        except (TypeError, ValueError):
+            section.header_distance = Cm(1.5)
+        try:
+            section.footer_distance = Cm(max(0.0, float(page.get('footer_distance_cm', 2.5))))
+        except (TypeError, ValueError):
+            section.footer_distance = Cm(2.5)
 
     body_line_spacing = preset.get('body', {}).get('line_spacing', 28) or 28
 
     # 标准公文版式保留两处可见空行：标题后、落款前。
+    # 通用文档保留输入文档已有的空行结构。
     # v1.7.2: 清理 styles.xml 里的 Autospacing 属性，避免内置样式覆盖直接属性
     _strip_autospacing_from_styles(doc)
-    structural_blank_ids = _ensure_structural_blank_lines(doc, body_line_spacing)
-    _ensure_attachment_page_starts(doc)
-    attachment_document_title_ids = _attachment_document_title_ids(doc)
+    if generic_mode:
+        structural_blank_ids = set()
+        attachment_document_title_ids = set()
+    else:
+        structural_blank_ids = _ensure_structural_blank_lines(doc, body_line_spacing)
+        _ensure_attachment_page_starts(doc)
+        attachment_document_title_ids = _attachment_document_title_ids(doc)
     total_paras = len(doc.paragraphs)
     all_texts, all_texts_idx_map = _build_text_context(doc)
     
@@ -1845,7 +2396,7 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
     logger.info('3. Formatting paragraphs...')
     _progress(10, 100, '格式化段落...')
     stats = {
-        'title': 0, 'recipient': 0, 'heading1': 0, 'heading2': 0, 
+        'title': 0, 'source_note': 0, 'recipient': 0, 'heading1': 0, 'heading2': 0,
         'heading3': 0, 'heading4': 0, 'body': 0, 'signature': 0, 
         'date': 0, 'attachment': 0, 'closing': 0
     }
@@ -1857,36 +2408,80 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
         if not text:
             if _paragraph_has_media(para):
                 _set_media_paragraph_single_spacing(para)
+            elif generic_mode:
+                _preserve_generic_blank_paragraph(para, body_line_spacing)
             elif _is_structural_blank(para):
                 _format_structural_blank_paragraph(para, body_line_spacing)
             else:
                 _compact_empty_paragraph(para)
             continue
-        
-        para_type = 'title' if id(para._p) in attachment_document_title_ids else detect_para_type(
-            text, i, total_paras,
-            para.paragraph_format.alignment,
-            all_texts,
-            all_texts_index=all_texts_idx_map.get(i),
-            prev_para_type=prev_para_type,
-        )
-        
-        if para_type == 'date':
+
+        if generic_mode:
+            text_index = all_texts_idx_map.get(i)
+            next_text = (
+                all_texts[text_index + 1]
+                if text_index is not None and text_index + 1 < len(all_texts) else ''
+            )
+            next_next_text = (
+                all_texts[text_index + 2]
+                if text_index is not None and text_index + 2 < len(all_texts) else ''
+            )
+            matched_type = match_custom_type(
+                text,
+                previous_type=prev_para_type,
+                next_text=next_text,
+                next_next_text=next_next_text,
+                rules=paragraph_rules,
+            )
+            if matched_type:
+                para_type = custom_para_type(matched_type)
+            else:
+                para_type = detect_generic_para_type(
+                    para, text, i, total_paras, all_texts,
+                    all_texts_index=text_index,
+                    prev_para_type=prev_para_type,
+                )
+        elif id(para._p) in attachment_document_title_ids:
+            para_type = 'title'
+        else:
+            para_type = detect_para_type(
+                text, i, total_paras, para.paragraph_format.alignment, all_texts,
+                all_texts_index=all_texts_idx_map.get(i),
+                prev_para_type=prev_para_type,
+            )
+
+        if not generic_mode and para_type == 'date':
             standardized_date = _standardize_date_text(text)
             if standardized_date != text:
                 para.text = standardized_date
                 text = standardized_date
 
         # 选择对应的格式
-        fmt_key = para_type if para_type in preset else 'body'
-        fmt = preset.get(fmt_key, preset['body'])
-        
+        if para_type.startswith('custom:'):
+            custom_type_id = para_type.split(':', 1)[1]
+            fmt = custom_types.get(custom_type_id, {}).get('format', preset['body'])
+        else:
+            fmt_key = para_type if para_type in preset else 'body'
+            fmt = preset.get(fmt_key, preset['body'])
+
+        if generic_mode and para_type != 'attachment' and float(fmt.get('indent') or 0) > 0:
+            _strip_leading_whitespace_runs(para)
+
         format_paragraph(
             para, fmt, para_type,
             first_line_bold=first_line_bold,
             revision_mode=revision_mode,
-            bold_serial=bold_serial
+            bold_serial=bold_serial,
+            preserve_inline_emphasis=generic_mode,
         )
+        if para_type.startswith('custom:'):
+            custom_type_id = para_type.split(':', 1)[1]
+            _apply_custom_prefix_format(
+                para,
+                custom_types.get(custom_type_id, {}).get('prefix'),
+                fmt,
+                revision_mode=revision_mode,
+            )
         stats[para_type] = stats.get(para_type, 0) + 1
         
         # 打印处理信息
@@ -1902,8 +2497,17 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
 
     # 格式化后再复查一次。部分文档的标题依赖原始对齐或字体较难在第一次
     # 识别时命中，完成标题格式化后再补齐结构空行更稳。
-    structural_blank_ids.update(_ensure_structural_blank_lines(doc, body_line_spacing))
-    _format_empty_paragraphs(doc, structural_blank_ids, body_line_spacing)
+    if generic_mode:
+        for para in doc.paragraphs:
+            if para.text.strip():
+                continue
+            if _paragraph_has_media(para):
+                _set_media_paragraph_single_spacing(para)
+            else:
+                _preserve_generic_blank_paragraph(para, body_line_spacing)
+    else:
+        structural_blank_ids.update(_ensure_structural_blank_lines(doc, body_line_spacing))
+        _format_empty_paragraphs(doc, structural_blank_ids, body_line_spacing)
     
     # 4. 处理表格
     logger.info('4. Formatting tables...')
@@ -1912,19 +2516,22 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
     # 表格配置：优先使用 preset 中的 table 节点，否则用 body 格式
     table_fmt = preset.get('table', {})
     table_defaults = {
-        'optimize': True,
+        'optimize': not generic_mode,
         'border_size_pt': 0.5,
         'width_percent': 100,
         'auto_col_width': True,
         'col_min_pct': 8,
         'col_max_pct': 45,
-        'row_height_cm': 0.7,
+        'row_height_cm': None if generic_mode else 0.7,
         'cell_margin_top_cm': 0.0,
         'cell_margin_bottom_cm': 0.0,
         'cell_margin_left_cm': 0.05,
         'cell_margin_right_cm': 0.05,
-        'paragraph_single': True,
-        'after_table_blank_line': True,
+        'cell_margins_same_as_table': True,
+        'cell_fit_text': False,
+        'paragraph_single': not generic_mode,
+        'before_table_blank_line': not generic_mode,
+        'after_table_blank_line': not generic_mode,
         'title_align': 'center',
         'unit_align': 'right',
         'unit_space_before_lines': 0.5,
@@ -1932,6 +2539,24 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
         'smart_align': False,
     }
     table_cfg = {**table_defaults, **table_fmt}
+    default_cell_margins = {
+        'cell_margin_top_cm': 0.0,
+        'cell_margin_bottom_cm': 0.0,
+        'cell_margin_left_cm': 0.05,
+        'cell_margin_right_cm': 0.05,
+    }
+    customized_cell_options = (
+        not table_cfg.get('cell_margins_same_as_table', True)
+        or bool(table_cfg.get('cell_fit_text', False))
+        or any(
+            abs(float(table_cfg.get(key, default)) - default) > 0.0001
+            for key, default in default_cell_margins.items()
+        )
+    )
+    apply_cell_options = table_cfg.get(
+        'apply_cell_options',
+        table_cfg.get('optimize', True) or customized_cell_options,
+    )
 
     tbl_font_cn = table_fmt.get('font_cn', body_fmt.get('font_cn', '仿宋_GB2312'))
     tbl_font_en = table_fmt.get('font_en', body_fmt.get('font_en', 'Times New Roman'))
@@ -1952,13 +2577,6 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
             _set_table_width_percent(table, table_cfg.get('width_percent', 100))
             _set_table_indent(table, 0)
             _set_table_borders(table, size_pt=table_cfg.get('border_size_pt', 0.5))
-            _set_table_cell_margins(
-                table,
-                top_cm=table_cfg.get('cell_margin_top_cm', 0.0),
-                bottom_cm=table_cfg.get('cell_margin_bottom_cm', 0.0),
-                left_cm=table_cfg.get('cell_margin_left_cm', 0.05),
-                right_cm=table_cfg.get('cell_margin_right_cm', 0.05),
-            )
             if table_cfg.get('auto_col_width', True):
                 _set_table_col_widths_by_content(
                     table,
@@ -1966,25 +2584,44 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
                     max_pct=table_cfg.get('col_max_pct', 45),
                 )
 
+        if apply_cell_options:
+            _set_table_cell_margins(
+                table,
+                top_cm=table_cfg.get('cell_margin_top_cm', 0.0),
+                bottom_cm=table_cfg.get('cell_margin_bottom_cm', 0.0),
+                left_cm=table_cfg.get('cell_margin_left_cm', 0.05),
+                right_cm=table_cfg.get('cell_margin_right_cm', 0.05),
+            )
+
         # 表格前空一行（如果已有空行则不重复）
         prev_block = blocks[idx - 1] if idx - 1 >= 0 else None
         prev_para_is_title = isinstance(prev_block, Paragraph) and _is_table_title(prev_block.text)
         prev_para_is_unit = isinstance(prev_block, Paragraph) and _is_table_unit(prev_block.text)
+        lead_in_para = None
+        for previous_index in range(idx - 1, -1, -1):
+            candidate = blocks[previous_index]
+            if isinstance(candidate, Table):
+                break
+            if isinstance(candidate, Paragraph) and candidate.text.strip():
+                lead_in_para = candidate
+                break
+        if lead_in_para is not None and _is_table_lead_in(lead_in_para.text) and not generic_mode:
+            _protect_table_lead_in_alignment(lead_in_para, body_fmt, body_line_spacing)
 
-        if isinstance(prev_block, Paragraph):
-            if prev_block.text.strip():
-                if prev_para_is_title or prev_para_is_unit:
-                    _insert_paragraph_before_paragraph(prev_block, text="")
-                else:
-                    _insert_paragraph_before_table(table, text="")
-        elif isinstance(prev_block, Table):
-            _insert_paragraph_after_table(prev_block, text="")
-        else:
-            if idx == 0:
+        if table_cfg.get('before_table_blank_line', True):
+            if isinstance(prev_block, Paragraph):
+                if prev_block.text.strip():
+                    if prev_para_is_title or prev_para_is_unit:
+                        _insert_paragraph_before_paragraph(prev_block, text="")
+                    else:
+                        _insert_paragraph_before_table(table, text="")
+            elif isinstance(prev_block, Table):
+                _insert_paragraph_after_table(prev_block, text="")
+            elif idx == 0:
                 _insert_paragraph_before_table(table, text="")
 
         # 标题段落（表格前一段）
-        if prev_para_is_title:
+        if prev_para_is_title and not generic_mode:
             if table_cfg.get('title_align', 'center') == 'center':
                 prev_block.alignment = WD_ALIGN_PARAGRAPH.CENTER
             prev_block.paragraph_format.space_before = Pt(0)
@@ -1996,12 +2633,13 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
         unit_para = None
         if isinstance(next_block, Paragraph) and _is_table_unit(next_block.text):
             unit_para = next_block
-            if table_cfg.get('unit_align', 'right') == 'right':
-                unit_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-            unit_space_lines = table_cfg.get('unit_space_before_lines', 0.5)
-            unit_para.paragraph_format.space_before = Pt(tbl_size * unit_space_lines)
-            unit_para.paragraph_format.space_after = Pt(0)
-            unit_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+            if not generic_mode:
+                if table_cfg.get('unit_align', 'right') == 'right':
+                    unit_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                unit_space_lines = table_cfg.get('unit_space_before_lines', 0.5)
+                unit_para.paragraph_format.space_before = Pt(tbl_size * unit_space_lines)
+                unit_para.paragraph_format.space_after = Pt(0)
+                unit_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 
         # 表格内内容
         serial_col_idx = None
@@ -2022,6 +2660,15 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
             for col_idx, cell in enumerate(row.cells):
                 if table_cfg.get('optimize', True):
                     _set_cell_borders(cell, size_pt=table_cfg.get('border_size_pt', 0.5))
+                if apply_cell_options:
+                    _set_cell_margins(
+                        cell,
+                        top_cm=table_cfg.get('cell_margin_top_cm', 0.0),
+                        bottom_cm=table_cfg.get('cell_margin_bottom_cm', 0.0),
+                        left_cm=table_cfg.get('cell_margin_left_cm', 0.05),
+                        right_cm=table_cfg.get('cell_margin_right_cm', 0.05),
+                    )
+                    _set_cell_fit_text(cell, table_cfg.get('cell_fit_text', False))
 
                 cell_text = ''.join(p.text for p in cell.paragraphs).strip()
                 for para in cell.paragraphs:
@@ -2029,7 +2676,10 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
                     if para.text.strip():
                         is_header = (row_idx == 0 and tbl_header_bold)
                         for run in para.runs:
+                            saved_bold = run.font.bold
                             set_font(run, tbl_font_cn, tbl_font_en, tbl_size, bold=(tbl_bold or is_header))
+                            if generic_mode and saved_bold is True:
+                                run.font.bold = True
 
                     # 段落格式
                     para.paragraph_format.first_line_indent = Pt(tbl_first_line_indent)
@@ -2083,9 +2733,13 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
             font_name=preset.get('page_number_font', '宋体'),
             font_size=preset.get('page_number_size', 14),
             style=preset.get('page_number_style', 'dash'),
+            prefix=preset.get('page_number_prefix', '— '),
+            suffix=preset.get('page_number_suffix', ' —'),
             position=preset.get('page_number_position', 'outside'),
             offset_from_text_mm=preset.get('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM),
+            footer_distance_cm=preset.get('page', {}).get('footer_distance_cm'),
             replace_existing=preset.get('replace_existing_page_number', True),
+            hide_last_page=preset.get('hide_last_page_number', False),
         )
     else:
         logger.info('5. Skipping page numbers...')
