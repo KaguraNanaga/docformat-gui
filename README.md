@@ -14,6 +14,7 @@
   <a href="#核心能力">核心能力</a> ·
   <a href="#使用方法">使用方法</a> ·
   <a href="#常见问题">常见问题</a> ·
+  <a href="https://github.com/KaguraNanaga/document-format-skills">Agent Skill</a> ·
   <a href="README_EN.md">English</a>
 </p>
 

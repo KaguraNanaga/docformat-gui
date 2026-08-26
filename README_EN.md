@@ -14,6 +14,7 @@
   <a href="#core-capabilities">Core Capabilities</a> ·
   <a href="#usage">Usage</a> ·
   <a href="#faq">FAQ</a> ·
+  <a href="https://github.com/KaguraNanaga/document-format-skills">Agent Skill</a> ·
   <a href="README.md">中文</a>
 </p>
 
