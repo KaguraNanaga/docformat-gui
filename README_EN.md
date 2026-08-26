@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://web.gongwengeshizhushou.com"><strong>Use the Web Version</strong></a> ·
   <a href="#download">Download</a> ·
   <a href="#core-capabilities">Core Capabilities</a> ·
   <a href="#usage">Usage</a> ·
@@ -21,6 +22,10 @@
   <img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange" alt="License">
   <img src="https://img.shields.io/badge/Language-Python-yellow" alt="Language">
 </p>
+
+> 🌐 **[Document Format GUI Web Version is now available](https://web.gongwengeshizhushou.com)**
+>
+> No installation or sign-in required. Process `.docx` files directly in your browser. Documents remain in the browser and are never uploaded to a server; after the required components finish loading, the current page can continue working offline.
 
 ---
 
