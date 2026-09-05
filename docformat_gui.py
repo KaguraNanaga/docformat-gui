@@ -4580,6 +4580,7 @@ class DocFormatApp:
     def _on_text_generated(self, title, body_text, output_path, is_markdown=False):
         """粘贴对话框生成 docx 后的回调：触发主流程格式化。"""
         import tempfile
+        from docx import Document
 
         self.log_panel.log(f"\n{'─' * 35}", 'info')
         self.log_panel.log(f"从文本生成 docx：{title}", 'info')
@@ -4588,6 +4589,8 @@ class DocFormatApp:
         try:
             with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp:
                 temp_input = tmp.name
+                tmp_doc = Document()
+                tmp_doc.save(temp_input)
             if is_markdown:
                 _create_docx_from_markdown(title, body_text, temp_input)
                 self.log_panel.log("  临时文件已生成（Markdown 格式）", 'info')
@@ -4877,7 +4880,7 @@ class DocFormatApp:
                     out_path = str(out_dir / f"{in_p.stem}_processed{in_p.suffix}")
                 else:
                     out_path = output_base
-
+                
                 self.log_panel.log(
                     f"\n[{idx + 1}/{total}] {Path(input_path).name}", 'info'
                 )
@@ -4891,6 +4894,7 @@ class DocFormatApp:
                         f"  ✓ 已保存: {Path(actual_out).name}", 'success'
                     )
                 except Exception as e:
+                    print(type(e).__name__, e)
                     self.log_panel.log(f"  ✗ 失败: {e}", 'error')
                     failed_files.append((Path(input_path).name, str(e)))
 
@@ -4996,6 +5000,8 @@ class DocFormatApp:
                 import tempfile
                 with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp:
                     temp_output_docx = tmp.name
+                    tmp_doc = Document()
+                    tmp_doc.save(temp_output_docx)
                 output_path_docx = temp_output_docx
             else:
                 output_path_docx = output_path
@@ -5022,6 +5028,8 @@ class DocFormatApp:
                 import tempfile
                 with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp:
                     temp_path = tmp.name
+                    tmp_doc = Document()
+                    tmp_doc.save(temp_path)
                 self.log_panel.log("步骤 1/2: 修复标点...", 'info')
                 progress_fn(0, '步骤 1/2: 修复标点...')
                 self._run_punctuation(input_path, temp_path, quiet=True, space_mode=space_mode)

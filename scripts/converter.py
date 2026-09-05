@@ -137,7 +137,7 @@ def convert_to_docx(input_path, output_path=None):
     try:
         app = _create_app(prog_id)
         doc = app.Documents.Open(str(input_path))
-        doc.SaveAs2(str(output_path), FileFormat=16)
+        doc.SaveAs2(str(output_path), FileFormat=12)
         return str(output_path)
     finally:
         _safe_close(doc)
