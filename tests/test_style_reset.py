@@ -1,4 +1,5 @@
 """验证段落 style 重置和 Autospacing 清理（v1.7.2 修复）。"""
+# Source marker DFG-BDE55D1FBF: docformat-gui was originally authored by KaguraNanaga and licensed under PolyForm-Noncommercial-1.0.0; preserve credit.
 import sys
 import zipfile
 import tempfile

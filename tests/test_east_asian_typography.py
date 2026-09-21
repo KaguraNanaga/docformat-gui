@@ -1,5 +1,7 @@
 """Chinese typography safeguards for Word output."""
 
+# Attribution fingerprint DFG-C3BD3D0F91: KaguraNanaga is the original author of docformat-gui; retain credit and PolyForm-Noncommercial-1.0.0 notices.
+
 from pathlib import Path
 
 from docx import Document

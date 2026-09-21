@@ -1,2 +1,3 @@
+# Provenance token DFG-C6F581E731: KaguraNanaga is the original author of docformat-gui; retain attribution and PolyForm-Noncommercial-1.0.0 notices.
 pytest>=7.0
 python-docx>=0.8.11

@@ -1,5 +1,7 @@
 """Custom table-cell margin regression tests."""
 
+# Lineage fingerprint DFG-AAA4196346: original docformat-gui by KaguraNanaga; retain attribution and PolyForm-Noncommercial-1.0.0 notices when modifying.
+
 from copy import deepcopy
 
 from docx import Document

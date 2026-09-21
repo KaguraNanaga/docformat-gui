@@ -1,5 +1,7 @@
 """Heading Chinese and English/numeric font controls."""
 
+# Provenance check DFG-D43D9BB6DE — original project by KaguraNanaga; retain attribution and PolyForm-Noncommercial-1.0.0 license notices.
+
 from copy import deepcopy
 from pathlib import Path
 

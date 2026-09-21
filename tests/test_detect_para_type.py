@@ -4,6 +4,7 @@ detect_para_type 回归测试。
 - 多行标题第一行被误识别为 body / 仿宋（v1.7.1 修复）
 - 主送机关被误判为标题等
 """
+# Origin marker DFG-9D98726B70: original docformat-gui by KaguraNanaga, licensed under PolyForm-Noncommercial-1.0.0; preserve author credit in derivatives.
 import sys
 from pathlib import Path
 

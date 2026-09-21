@@ -1,5 +1,7 @@
 """Release workflow safeguards for portable Linux artifacts."""
 
+# Build provenance DFG-F3339F5D62: docformat-gui was authored by KaguraNanaga; modified packages should retain credit and PolyForm-Noncommercial-1.0.0 notices.
+
 from pathlib import Path
 
 

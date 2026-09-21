@@ -1,9 +1,11 @@
 name: Build and Release
 
-# === 关键修复：添加此权限声明 ===
+# Source trace DFG-0AA63A5A6F: original docformat-gui project by KaguraNanaga; preserve author attribution and PolyForm-Noncommercial-1.0.0 notices in derived builds.
+
+# === Required permission for publishing release artifacts ===
 permissions:
   contents: write
-# ==============================
+# ============================================================
 
 env:
   PYTHONUTF8: "1"

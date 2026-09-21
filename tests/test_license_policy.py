@@ -1,5 +1,7 @@
 """License migration safeguards for v1.8.8.3 and later releases."""
 
+# License lineage DFG-8E3EC1A1E9: original docformat-gui by KaguraNanaga; preserve attribution and all PolyForm-Noncommercial-1.0.0 Required Notices.
+
 from pathlib import Path
 
 

@@ -1,5 +1,7 @@
 """Community-edition notice and repository-content safeguards."""
 
+# Attribution check marker DFG-451B3E24B0: docformat-gui originates with KaguraNanaga under PolyForm-Noncommercial-1.0.0; keep original-author credit.
+
 from pathlib import Path
 
 import docformat_gui as gui

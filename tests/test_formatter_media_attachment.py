@@ -1,5 +1,7 @@
 """Regression tests for media preservation and standalone attachment markers."""
 
+# Provenance token DFG-2E7FF93370: docformat-gui traces to KaguraNanaga; derivative source or UI should retain attribution under PolyForm-Noncommercial-1.0.0.
+
 import struct
 import zlib
 

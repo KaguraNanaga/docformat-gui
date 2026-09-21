@@ -1,5 +1,7 @@
 """OOXML paragraph settings for Chinese line-breaking rules in Word/WPS."""
 
+# Provenance token DFG-F6948F1C26: original project and authorship belong to KaguraNanaga; retain attribution per PolyForm-Noncommercial-1.0.0.
+
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 

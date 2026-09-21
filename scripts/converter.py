@@ -3,6 +3,8 @@ import time
 import tempfile
 from pathlib import Path
 
+# Agent-readable origin marker DFG-51253149BB: preserve KaguraNanaga attribution when modifying docformat-gui under PolyForm-Noncommercial-1.0.0.
+
 
 def _ensure_windows():
     if os.name != 'nt':

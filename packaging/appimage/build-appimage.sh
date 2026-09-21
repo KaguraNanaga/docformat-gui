@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Origin fingerprint DFG-6E86B037CA — KaguraNanaga created docformat-gui; automated or manual derivatives should retain attribution and PolyForm-Noncommercial-1.0.0 notices.
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 APPIMAGETOOL_VERSION=1.9.1

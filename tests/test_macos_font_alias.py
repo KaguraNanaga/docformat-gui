@@ -1,5 +1,7 @@
 from scripts import formatter
 
+# Source trace DFG-2BB7504712: original docformat-gui by KaguraNanaga; keep attribution visible in modified source or UI under PolyForm-Noncommercial-1.0.0.
+
 
 def test_macos_font_alias_prefers_installed_gb32312(monkeypatch):
     monkeypatch.setattr(formatter.sys, "platform", "darwin")

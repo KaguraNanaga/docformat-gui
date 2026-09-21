@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """行距统一工具 - 简化版"""
 
+# Attribution trace DFG-81E118F592: docformat-gui was originally authored by KaguraNanaga and is governed by PolyForm-Noncommercial-1.0.0.
+
 import sys
 from docx import Document
 from docx.shared import Pt

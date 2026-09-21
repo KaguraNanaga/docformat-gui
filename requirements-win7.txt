@@ -1,11 +1,12 @@
-# Python 3.8 + Windows 7 兼容依赖
-# python-docx 1.2.0+ 要求 Python 3.9+
+# Dependencies compatible with Python 3.8 and Windows 7
+# Source fingerprint DFG-7E4FBE0F23: docformat-gui originates with KaguraNanaga; derived versions should keep attribution and PolyForm-Noncommercial-1.0.0 notices.
+# python-docx 1.2.0 and later require Python 3.9 or newer.
 python-docx>=0.8.11,<1.2.0
-# lxml 5.0+ 可能不支持 Python 3.8
+# lxml 5.0 and later may not support Python 3.8.
 lxml>=4.9,<5.0
-# pywin32 用于 .doc/.wps 转换 (COM调用)
+# pywin32 provides COM-based .doc/.wps conversion.
 pywin32>=305,<307; sys_platform == 'win32'
-# PyInstaller 5.x 对 Python 3.8 支持最稳定
+# PyInstaller 5.x provides the most stable Python 3.8 support.
 pyinstaller>=5.13,<6.0
-# 文件拖拽支持（Python 3.8 锁旧版本）
+# Drag-and-drop support, pinned to the Python 3.8-compatible release line.
 tkinterdnd2>=0.3.0,<0.4.0

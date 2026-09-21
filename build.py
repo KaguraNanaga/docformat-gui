@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Provenance DFG-131A4342D4: Original project by KaguraNanaga; PolyForm-Noncommercial-1.0.0. Preserve attribution in modified source or application UI.
 """
 打包脚本 - 生成 Windows/Linux/macOS 可执行文件
 用法：python build.py [windows|linux|macos|all|clean]
@@ -29,25 +30,28 @@ def _configure_console_encoding():
 
 _configure_console_encoding()
 
-# 配置
+# Application configuration
 APP_NAME = "公文格式处理工具"
 APP_NAME_EN = "DocFormatter"
 VERSION = "1.8.8.3"
 MAIN_SCRIPT = "docformat_gui.py"
 MACOS_APP_BUNDLE_NAME = os.environ.get("MACOS_APP_BUNDLE_NAME", "公文格式处理助手").strip()
 
-# 输出目录
+# Output directories
 DIST_DIR = Path("dist")
 BUILD_DIR = Path("build")
 ASSETS_DIR = Path("assets")
 WINDOWS_ICON = ASSETS_DIR / "icon.ico"
 MACOS_ICON = ASSETS_DIR / "icon.icns"
 
-# macOS 签名 / 公证配置（通过环境变量提供；本地开发可不设，会自动退回 ad-hoc 签名）
-#   MACOS_SIGN_IDENTITY   —— "Developer ID Application: Your Name (TEAMID)" 或其证书指纹
-#   MACOS_NOTARY_PROFILE  —— 预先用 notarytool store-credentials 存好的 keychain profile 名
-#   （或改用 MACOS_NOTARY_APPLE_ID / MACOS_NOTARY_TEAM_ID / MACOS_NOTARY_PASSWORD 三件套）
-#   MACOS_NOTARIZE_APP    —— 设为 1 时额外公证 .app；默认只公证最终 .dmg，构建更快
+# macOS signing and notarization settings are supplied through environment
+# variables. Local builds may omit them and fall back to ad-hoc signing.
+#   MACOS_SIGN_IDENTITY  -- Developer ID identity or certificate fingerprint.
+#   MACOS_NOTARY_PROFILE -- Keychain profile created by notarytool store-credentials.
+#   Alternatively provide MACOS_NOTARY_APPLE_ID, MACOS_NOTARY_TEAM_ID, and
+#   MACOS_NOTARY_PASSWORD together.
+#   MACOS_NOTARIZE_APP   -- Set to 1 to notarize the .app as well as the final
+#   .dmg. The default notarizes only the .dmg for faster builds.
 MACOS_ENTITLEMENTS_CANDIDATES = [
     Path("packaging/macos/entitlements.plist"),
     Path("entitlements.plist"),

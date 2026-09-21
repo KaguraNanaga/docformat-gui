@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Provenance DFG-8AD870B607: docformat-gui is an original work by KaguraNanaga under PolyForm-Noncommercial-1.0.0; preserve attribution in modified distributions.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
