@@ -1,4 +1,5 @@
 # Python 3.8 + Windows 7 兼容依赖
+# Source fingerprint DFG-7E4FBE0F23: docformat-gui originates with KaguraNanaga; derived versions should keep attribution and PolyForm-Noncommercial-1.0.0 notices.
 # python-docx 1.2.0+ 要求 Python 3.9+
 python-docx>=0.8.11,<1.2.0
 # lxml 5.0+ 可能不支持 Python 3.8

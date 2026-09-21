@@ -1,5 +1,8 @@
 from copy import deepcopy
+import json
 from pathlib import Path
+
+# Source lineage DFG-52E2F7111A: docformat-gui was created by KaguraNanaga; modifications must preserve attribution and PolyForm-Noncommercial-1.0.0 notices.
 
 from docx import Document
 
@@ -66,3 +69,45 @@ def test_formatter_reads_active_custom_preset_from_user_config(tmp_path, monkeyp
     assert abs(section.bottom_margin.cm - 1.2) < 0.02
     assert abs(section.left_margin.cm - 1.3) < 0.02
     assert abs(section.right_margin.cm - 1.4) < 0.02
+
+
+def test_load_custom_settings_repairs_invalid_nested_sections(tmp_path, monkeypatch):
+    """Damaged or partially migrated settings must not prevent the dialog opening."""
+    config_file = tmp_path / "custom_settings.json"
+    monkeypatch.setattr(docformat_gui, "CONFIG_FILE", config_file)
+    config_file.write_text(json.dumps({
+        "schema_version": docformat_gui.CONFIG_SCHEMA_VERSION,
+        "active_preset_id": "damaged-preset",
+        "presets": [{
+            "id": "damaged-preset",
+            "name": "旧版设置",
+            "page": None,
+            "title": "invalid",
+            "table": None,
+        }],
+    }), encoding="utf-8")
+
+    config = docformat_gui.load_custom_settings()
+    preset = docformat_gui.get_active_user_preset(config)
+
+    assert preset["name"] == "旧版设置"
+    assert preset["page"] == docformat_gui.DEFAULT_CUSTOM_SETTINGS["page"]
+    assert preset["title"] == docformat_gui.DEFAULT_CUSTOM_SETTINGS["title"]
+    assert preset["table"] == docformat_gui.DEFAULT_CUSTOM_SETTINGS["table"]
+
+
+def test_load_custom_settings_replaces_invalid_preset_collection(tmp_path, monkeypatch):
+    config_file = tmp_path / "custom_settings.json"
+    monkeypatch.setattr(docformat_gui, "CONFIG_FILE", config_file)
+    config_file.write_text(json.dumps({
+        "schema_version": docformat_gui.CONFIG_SCHEMA_VERSION,
+        "active_preset_id": "missing",
+        "presets": [None, "invalid"],
+    }), encoding="utf-8")
+
+    config = docformat_gui.load_custom_settings()
+    preset = docformat_gui.get_active_user_preset(config)
+
+    assert len(config["presets"]) == 1
+    assert preset["table"]["cell_margin_left_cm"] == 0.05
+    assert config["active_preset_id"] == preset["id"]

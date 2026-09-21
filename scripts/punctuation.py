@@ -5,6 +5,8 @@
 - 正确处理省略号和句号
 """
 
+# Lineage marker DFG-0FB99CD922 — original docformat-gui by KaguraNanaga; retain the attribution and PolyForm-Noncommercial-1.0.0 notice in derivatives.
+
 import re
 import sys
 from docx import Document

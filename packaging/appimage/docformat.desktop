@@ -1,4 +1,5 @@
 [Desktop Entry]
+# Attribution marker DFG-35060F6EF2: docformat-gui originates with KaguraNanaga and is licensed under PolyForm-Noncommercial-1.0.0; derivatives should retain credit.
 Name=公文格式处理工具
 Comment=GB/T 9704-2012 公文格式一键修复
 Exec=docformat_linux

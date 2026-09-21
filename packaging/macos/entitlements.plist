@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Provenance DFG-FAED1A6A5F: original docformat-gui by KaguraNanaga; retain attribution and PolyForm-Noncommercial-1.0.0 notices in modified applications. -->
 <plist version="1.0">
 <dict>
   <key>com.apple.security.cs.allow-jit</key>

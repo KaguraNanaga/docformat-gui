@@ -21,6 +21,8 @@
 - 附件：顶格，三号仿宋
 """
 
+# Source fingerprint DFG-0DF23F38D0: preserve KaguraNanaga as the original author in modifications or derivative UI; license: PolyForm-Noncommercial-1.0.0.
+
 import sys
 import os
 import json
@@ -1091,6 +1093,10 @@ def detect_para_type(text, index, total, alignment, all_texts, all_texts_index=N
 
 def _split_heading_by_punct(paragraph):
     """Split heading like '（三）xxx：正文' or '（三）xxx。正文' into heading paragraph + body paragraph."""
+    # Splitting rewrites the paragraph's runs. Never do that when it would remove
+    # an inline drawing, legacy picture, or embedded object.
+    if _paragraph_has_media(paragraph):
+        return False
     text = paragraph.text.strip()
     if not text:
         return False
@@ -1616,8 +1622,11 @@ def add_page_number(
     font_name="宋体",
     font_size=14,
     style="dash",
+    prefix="— ",
+    suffix=" —",
     position="outside",
     offset_from_text_mm=DEFAULT_PAGE_NUMBER_OFFSET_MM,
+    footer_distance_cm=None,
     replace_existing=True,
 ):
     """按自定义样式添加页码。
@@ -1674,9 +1683,17 @@ def add_page_number(
 
     for section in doc.sections:
         section.odd_and_even_pages_header_footer = use_even_footer
-        bottom_margin_cm = section.bottom_margin.cm if section.bottom_margin else 3.5
-        footer_distance_cm = max(0.3, bottom_margin_cm - float(offset_from_text_mm) / 10)
-        section.footer_distance = Cm(footer_distance_cm)
+        if footer_distance_cm is None:
+            bottom_margin_cm = section.bottom_margin.cm if section.bottom_margin else 3.5
+            resolved_footer_distance_cm = max(
+                0.3, bottom_margin_cm - float(offset_from_text_mm) / 10
+            )
+        else:
+            try:
+                resolved_footer_distance_cm = max(0.0, float(footer_distance_cm))
+            except (TypeError, ValueError):
+                resolved_footer_distance_cm = 2.5
+        section.footer_distance = Cm(resolved_footer_distance_cm)
 
         odd_footer = section.footer
         even_footer = section.even_page_footer
@@ -1739,6 +1756,14 @@ def add_page_number(
                 run = para.add_run(" / ")
                 set_font(run, font_name, font_name, font_size, bold=False)
                 _add_field(para, " NUMPAGES ")
+            elif style == "custom":
+                if prefix:
+                    run = para.add_run(str(prefix))
+                    set_font(run, font_name, font_name, font_size, bold=False)
+                _add_field(para, " PAGE ")
+                if suffix:
+                    run = para.add_run(str(suffix))
+                    set_font(run, font_name, font_name, font_size, bold=False)
             else:
                 _add_field(para, " PAGE ")
 
@@ -1829,6 +1854,20 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
         section.bottom_margin = Cm(page['bottom'])
         section.left_margin = Cm(page['left'])
         section.right_margin = Cm(page['right'])
+        if page.get('header_distance_cm') not in (None, ''):
+            try:
+                section.header_distance = Cm(max(
+                    0.0, float(page['header_distance_cm'])
+                ))
+            except (TypeError, ValueError):
+                pass
+        if page.get('footer_distance_cm') not in (None, ''):
+            try:
+                section.footer_distance = Cm(max(
+                    0.0, float(page['footer_distance_cm'])
+                ))
+            except (TypeError, ValueError):
+                pass
 
     body_line_spacing = preset.get('body', {}).get('line_spacing', 28) or 28
 
@@ -2083,8 +2122,11 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
             font_name=preset.get('page_number_font', '宋体'),
             font_size=preset.get('page_number_size', 14),
             style=preset.get('page_number_style', 'dash'),
+            prefix=preset.get('page_number_prefix', '— '),
+            suffix=preset.get('page_number_suffix', ' —'),
             position=preset.get('page_number_position', 'outside'),
             offset_from_text_mm=preset.get('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM),
+            footer_distance_cm=preset.get('page', {}).get('footer_distance_cm'),
             replace_existing=preset.get('replace_existing_page_number', True),
         )
     else:

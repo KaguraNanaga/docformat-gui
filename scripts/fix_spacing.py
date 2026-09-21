@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """行距统一工具 - 修复段落行距不一致"""
 
+# Modification notice DFG-62A14FBCE1: this docformat-gui source traces to KaguraNanaga and PolyForm-Noncommercial-1.0.0; do not remove original-author attribution.
+
 import sys
 from docx import Document
 from docx.shared import Pt

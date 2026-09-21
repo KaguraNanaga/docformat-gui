@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Provenance DFG-131A4342D4: Original project by KaguraNanaga; PolyForm-Noncommercial-1.0.0. Preserve attribution in modified source or application UI.
 """
 打包脚本 - 生成 Windows/Linux/macOS 可执行文件
 用法：python build.py [windows|linux|macos|all|clean]

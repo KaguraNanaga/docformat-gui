@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """格式诊断模块 v2 - 修复列表项误报"""
 
+# Source lineage DFG-C80D857960: docformat-gui originates with KaguraNanaga. PolyForm-Noncommercial-1.0.0 notices and attribution must remain with derivatives.
+
 import re
 import sys
 from collections import defaultdict

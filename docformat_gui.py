@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Origin trace DFG-8F0E11FE07 — docformat-gui was created by KaguraNanaga under PolyForm-Noncommercial-1.0.0; derivative software should retain this attribution.
 """
 公文格式处理工具 - 纸质感极简风格 v2
 优化：更大图标、更好排版、卡片式选择
@@ -422,6 +423,7 @@ PAGE_NUMBER_STYLE_OPTIONS = {
     'plain': '1（纯数字）',
     'page_text': '第 1 页',
     'page_total': '1 / 总页数',
+    'custom': '自定义前后符号',
 }
 PAGE_NUMBER_POSITION_OPTIONS = {
     'outside': '奇数页右、偶数页左（外侧）',
@@ -462,7 +464,10 @@ FONT_SIZES = [
 
 DEFAULT_CUSTOM_SETTINGS = {
     'name': '自定义格式',
-    'page': {'top': 3.7, 'bottom': 3.5, 'left': 2.8, 'right': 2.6},
+    'page': {
+        'top': 3.7, 'bottom': 3.5, 'left': 2.8, 'right': 2.6,
+        'header_distance_cm': 1.5, 'footer_distance_cm': 2.5,
+    },
     'title': {
         'font_cn': '方正小标宋简体', 'font_en': 'Times New Roman',
         'size': 22, 'bold': False, 'align': 'center', 'indent': 0,
@@ -534,6 +539,8 @@ DEFAULT_CUSTOM_SETTINGS = {
     'page_number_font': '宋体',
     'page_number_size': 14,
     'page_number_style': 'dash',
+    'page_number_prefix': '— ',
+    'page_number_suffix': ' —',
     'page_number_position': 'outside',
     'page_number_offset_mm': DEFAULT_PAGE_NUMBER_OFFSET_MM,
     'replace_existing_page_number': True,
@@ -542,7 +549,7 @@ DEFAULT_CUSTOM_SETTINGS = {
 
 # v1.8.0: 配置文件 schema 版本
 CONFIG_SCHEMA_VERSION = 2
-PAGE_NUMBER_CONFIG_VERSION = 1
+PAGE_NUMBER_CONFIG_VERSION = 2
 
 # 内置只读预设的 id（与 PRESETS dict key 对应）
 BUILTIN_PRESET_IDS = ('official', 'academic', 'legal')
@@ -597,15 +604,24 @@ def _migrate_legacy_config(legacy_data):
 
 
 def _merge_settings(defaults, custom):
+    """Merge a preset while replacing damaged nested sections with defaults."""
+    import copy
+
+    if not isinstance(custom, dict):
+        return copy.deepcopy(defaults)
+
     merged = {}
     for key, value in defaults.items():
         if key in custom:
-            if isinstance(value, dict) and isinstance(custom.get(key), dict):
-                merged[key] = _merge_settings(value, custom[key])
+            if isinstance(value, dict):
+                if isinstance(custom.get(key), dict):
+                    merged[key] = _merge_settings(value, custom[key])
+                else:
+                    merged[key] = copy.deepcopy(value)
             else:
                 merged[key] = custom[key]
         else:
-            merged[key] = value
+            merged[key] = copy.deepcopy(value)
     return merged
 
 
@@ -613,10 +629,27 @@ def _ensure_page_number_defaults(preset):
     """补齐新版页码配置，并兼容旧版 footer_distance 字段。"""
     if not isinstance(preset, dict):
         return preset
+    page = preset.setdefault('page', {})
+    if not isinstance(page, dict):
+        page = {}
+        preset['page'] = page
+    page.setdefault('header_distance_cm', 1.5)
+    if page.get('footer_distance_cm') in (None, ''):
+        try:
+            bottom_cm = float(page.get('bottom', 3.5))
+            offset_mm = float(preset.get(
+                'page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM
+            ))
+        except (TypeError, ValueError):
+            bottom_cm = 3.5
+            offset_mm = DEFAULT_PAGE_NUMBER_OFFSET_MM
+        page['footer_distance_cm'] = max(0.0, bottom_cm - offset_mm / 10)
     preset.setdefault('page_number', True)
     preset.setdefault('page_number_font', '宋体')
     preset.setdefault('page_number_size', 14)
     preset.setdefault('page_number_style', 'dash')
+    preset.setdefault('page_number_prefix', '— ')
+    preset.setdefault('page_number_suffix', ' —')
     preset.setdefault('page_number_position', 'outside')
     preset.setdefault('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM)
     preset.setdefault('replace_existing_page_number', True)
@@ -624,10 +657,13 @@ def _ensure_page_number_defaults(preset):
 
 
 def _ensure_page_number_config(config):
-    """Move the former 7mm default to the 10mm official-layout default once."""
+    """迁移旧页码偏移量，并补齐显式页眉/页脚距离及自定义符号。"""
     if not isinstance(config, dict) or config.get('page_number_config_version') == PAGE_NUMBER_CONFIG_VERSION:
         return False
-    for preset in config.get('presets', []):
+    presets = config.get('presets')
+    if not isinstance(presets, list):
+        presets = []
+    for preset in presets:
         if not isinstance(preset, dict):
             continue
         try:
@@ -636,6 +672,23 @@ def _ensure_page_number_config(config):
             was_old_default = preset.get('page_number_offset_mm') in (None, '')
         if was_old_default:
             preset['page_number_offset_mm'] = DEFAULT_PAGE_NUMBER_OFFSET_MM
+        page = preset.setdefault('page', {})
+        if not isinstance(page, dict):
+            page = {}
+            preset['page'] = page
+        page.setdefault('header_distance_cm', 1.5)
+        if page.get('footer_distance_cm') in (None, ''):
+            try:
+                bottom_cm = float(page.get('bottom', 3.5))
+                offset_mm = float(preset.get(
+                    'page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM
+                ))
+            except (TypeError, ValueError):
+                bottom_cm = 3.5
+                offset_mm = DEFAULT_PAGE_NUMBER_OFFSET_MM
+            page['footer_distance_cm'] = max(0.0, bottom_cm - offset_mm / 10)
+        preset.setdefault('page_number_prefix', '— ')
+        preset.setdefault('page_number_suffix', ' —')
     config['page_number_config_version'] = PAGE_NUMBER_CONFIG_VERSION
     return True
 
@@ -658,7 +711,12 @@ def load_custom_settings():
             config = _migrate_legacy_config(data)
 
     _ensure_page_number_config(config)
-    presets = config.get('presets') or []
+    raw_presets = config.get('presets')
+    presets = (
+        [preset for preset in raw_presets if isinstance(preset, dict)]
+        if isinstance(raw_presets, list)
+        else []
+    )
     if not presets:
         presets = [_make_default_user_preset()]
 
@@ -704,7 +762,15 @@ def save_custom_settings(config):
         else:
             config['schema_version'] = CONFIG_SCHEMA_VERSION
             _ensure_page_number_config(config)
-            presets = config.get('presets') or []
+            raw_presets = config.get('presets')
+            presets = (
+                [preset for preset in raw_presets if isinstance(preset, dict)]
+                if isinstance(raw_presets, list)
+                else []
+            )
+            if not presets:
+                presets = [_make_default_user_preset()]
+            config['presets'] = presets
             for preset in presets:
                 _ensure_page_number_defaults(preset)
             if presets and not config.get('active_preset_id'):
@@ -722,7 +788,14 @@ def get_active_user_preset(config):
     
     如果 id 不存在或没有 presets，返回第一个，再不行返回新建的默认预设。
     """
-    presets = config.get('presets', [])
+    if not isinstance(config, dict):
+        return _make_default_user_preset()
+    raw_presets = config.get('presets')
+    presets = (
+        [preset for preset in raw_presets if isinstance(preset, dict)]
+        if isinstance(raw_presets, list)
+        else []
+    )
     active_id = config.get('active_preset_id')
     if active_id:
         for p in presets:
@@ -773,6 +846,7 @@ class CustomSettingsDialog(tk.Toplevel):
     
     def __init__(self, parent, on_save=None):
         super().__init__(parent)
+        self.withdraw()
         self.dialog = self
         
         self.on_save = on_save
@@ -787,22 +861,29 @@ class CustomSettingsDialog(tk.Toplevel):
         self.configure(bg=Theme.BG)
         self.resizable(True, True)
         
-        # 模态窗口
+        # 模态窗口在控件全部创建后再显示，避免初始化异常留下隐藏抓取窗口。
         self.transient(parent)
-        self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
-        
-        _fit_dialog_to_screen(
-            self, parent,
-            desired_w=1600, desired_h=1100,
-            min_w=1040, min_h=720
-        )
-        
-        self._create_widgets()
-        self._refresh_preset_list()
-        self.update_idletasks()   # 确保所有控件完成布局
-        self._load_values()
-        self.after_idle(self._load_values)  # 事件循环空闲后再刷新一次，兜底
+
+        try:
+            _fit_dialog_to_screen(
+                self, parent,
+                desired_w=1600, desired_h=1100,
+                min_w=1040, min_h=720
+            )
+
+            self._create_widgets()
+            self._refresh_preset_list()
+            self.update_idletasks()   # 确保所有控件完成布局
+            self._load_values()
+            self.after_idle(self._load_values)  # 事件循环空闲后再刷新一次，兜底
+            self.deiconify()
+            self.lift()
+            self.grab_set()
+            self.focus_force()
+        except Exception:
+            self.destroy()
+            raise
     
     # ==================== 界面构建 ====================
 
@@ -897,6 +978,36 @@ class CustomSettingsDialog(tk.Toplevel):
             var = tk.StringVar(value=str(self.settings.get('page', {}).get(key, 2.5)))
             self.margin_vars[key] = var
             tk.Entry(f, textvariable=var, font=get_font(11), width=6, relief='solid', bd=1).pack(side='left', padx=3)
+
+        page_settings = self.settings.get('page', {})
+        edge_row = tk.Frame(margin_frame, bg=Theme.BG)
+        edge_row.grid(row=1, column=0, columnspan=4, sticky='w', pady=(8, 0))
+        tk.Label(
+            edge_row, text="页眉距顶边(cm):", font=get_font(11),
+            bg=Theme.BG, fg=Theme.TEXT_SECONDARY,
+        ).pack(side='left')
+        self.header_distance_var = tk.StringVar(
+            value=str(page_settings.get('header_distance_cm', 1.5))
+        )
+        tk.Entry(
+            edge_row, textvariable=self.header_distance_var,
+            font=get_font(11), width=6, relief='solid', bd=1,
+        ).pack(side='left', padx=(4, 14))
+        tk.Label(
+            edge_row, text="页脚距底边(cm):", font=get_font(11),
+            bg=Theme.BG, fg=Theme.TEXT_SECONDARY,
+        ).pack(side='left')
+        self.footer_distance_var = tk.StringVar(
+            value=str(page_settings.get('footer_distance_cm', 2.5))
+        )
+        tk.Entry(
+            edge_row, textvariable=self.footer_distance_var,
+            font=get_font(11), width=6, relief='solid', bd=1,
+        ).pack(side='left', padx=(4, 14))
+        tk.Label(
+            edge_row, text="均为距纸张边缘的距离",
+            font=get_font(9), bg=Theme.BG, fg=Theme.TEXT_MUTED,
+        ).pack(side='left')
         
         # --- 标题格式 ---
         self._create_section(main, "📝 标题", pad_x)
@@ -1185,6 +1296,16 @@ class CustomSettingsDialog(tk.Toplevel):
             font_size=12,
         ).pack(anchor='w', padx=6, pady=3)
 
+        self.split_heading_at_punct_var = tk.BooleanVar(
+            value=self.settings.get('split_heading_at_punct', False)
+        )
+        self._create_inline_toggle(
+            special_frame,
+            "标题后有冒号或句号时，将后续正文另起一段",
+            self.split_heading_at_punct_var,
+            font_size=12,
+        ).pack(anchor='w', padx=6, pady=3)
+
         self.deep_clean_var = tk.BooleanVar(value=self.settings.get('deep_clean', False))
         self._create_inline_toggle(
             special_frame,
@@ -1257,26 +1378,47 @@ class CustomSettingsDialog(tk.Toplevel):
             width=11, initial_value=self.page_number_size_var.get()
         ).pack(side='left')
 
-        fd_row = tk.Frame(special_frame, bg=Theme.BG)
-        fd_row.pack(anchor='w', pady=(2, 6))
+        custom_page_number_row = tk.Frame(special_frame, bg=Theme.BG)
+        custom_page_number_row.pack(fill='x', anchor='w', pady=(2, 4))
         tk.Label(
-            fd_row, text="距版心下边缘:", font=get_font(11),
+            custom_page_number_row, text="自定义前缀:", font=get_font(11),
             bg=Theme.BG, fg=Theme.TEXT_SECONDARY
         ).pack(side='left', padx=(6, 4))
+        self.page_number_prefix_var = tk.StringVar(
+            value=self.settings.get('page_number_prefix', '— ')
+        )
+        prefix_entry = tk.Entry(
+            custom_page_number_row, textvariable=self.page_number_prefix_var,
+            font=get_font(11), width=8, relief='solid', bd=1,
+        )
+        prefix_entry.pack(side='left')
+        tk.Label(
+            custom_page_number_row, text="后缀:", font=get_font(11),
+            bg=Theme.BG, fg=Theme.TEXT_SECONDARY,
+        ).pack(side='left', padx=(14, 4))
+        self.page_number_suffix_var = tk.StringVar(
+            value=self.settings.get('page_number_suffix', ' —')
+        )
+        suffix_entry = tk.Entry(
+            custom_page_number_row, textvariable=self.page_number_suffix_var,
+            font=get_font(11), width=8, relief='solid', bd=1,
+        )
+        suffix_entry.pack(side='left')
+        for entry in (prefix_entry, suffix_entry):
+            entry.bind('<KeyRelease>', self._activate_custom_page_number, add='+')
+
+        # 保留旧字段用于读取旧配置；新版垂直位置由“页脚距底边”统一控制。
         self.page_number_offset_var = tk.StringVar(
             value=str(self.settings.get('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM))
         )
-        tk.Entry(
-            fd_row, textvariable=self.page_number_offset_var,
-            font=get_font(11), width=5, relief='solid', bd=1
-        ).pack(side='left')
-        tk.Label(fd_row, text=" mm", font=get_font(10),
-                 bg=Theme.BG, fg=Theme.TEXT_MUTED).pack(side='left')
         tk.Label(
-            fd_row,
-            text="  公文通常为 7mm；程序会根据下边距自动换算，不是距纸底 7mm",
+            special_frame,
+            text=(
+                "选择“自定义前后符号”时生效；例如前后都填 & 可得 &1&，"
+                "前后都填 —— 可得 ——1——。"
+            ),
             font=get_font(9), bg=Theme.BG, fg=Theme.TEXT_MUTED
-        ).pack(side='left', padx=(8, 0))
+        ).pack(anchor='w', padx=6, pady=(0, 6))
 
         self.replace_page_number_var = tk.BooleanVar(
             value=self.settings.get('replace_existing_page_number', True)
@@ -1861,6 +2003,11 @@ class CustomSettingsDialog(tk.Toplevel):
         combo.bind('<FocusOut>', lambda e: frame.configure(highlightbackground=Theme.BORDER))
         
         return frame
+
+    def _activate_custom_page_number(self, _event=None):
+        """手动编辑页码前后符号时，自动启用自定义页码样式。"""
+        self.page_number_style_var.set(PAGE_NUMBER_STYLE_OPTIONS['custom'])
+        self.page_number_var.set(True)
     
     def _size_display(self, pt_value):
         """pt值 → 显示字符串"""
@@ -1904,6 +2051,9 @@ class CustomSettingsDialog(tk.Toplevel):
             # 页边距
             for key in ['top', 'bottom', 'left', 'right']:
                 self.margin_vars[key].set(str(s.get('page', {}).get(key, 2.5)))
+            page = s.get('page', {})
+            self.header_distance_var.set(str(page.get('header_distance_cm', 1.5)))
+            self.footer_distance_var.set(str(page.get('footer_distance_cm', 2.5)))
             
             # 标题
             self.title_font_var.set(s.get('title', {}).get('font_cn', '方正小标宋简体'))
@@ -1961,6 +2111,7 @@ class CustomSettingsDialog(tk.Toplevel):
             # 特殊选项
             self.first_bold_var.set(s.get('first_line_bold', False))
             self.bold_serial_var.set(s.get('bold_serial', True))
+            self.split_heading_at_punct_var.set(s.get('split_heading_at_punct', False))
             self.deep_clean_var.set(s.get('deep_clean', False))
             self.space_handling_var.set(s.get('space_handling', 'remove_all'))
             self.page_number_var.set(s.get('page_number', True))
@@ -1978,6 +2129,8 @@ class CustomSettingsDialog(tk.Toplevel):
             )
             self.page_number_font_var.set(s.get('page_number_font', '宋体'))
             self._set_size_var(self.page_number_size_var, s.get('page_number_size', 14))
+            self.page_number_prefix_var.set(s.get('page_number_prefix', '— '))
+            self.page_number_suffix_var.set(s.get('page_number_suffix', ' —'))
             self.page_number_offset_var.set(str(s.get('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM)))
             self.replace_page_number_var.set(s.get('replace_existing_page_number', True))
             
@@ -2016,6 +2169,20 @@ class CustomSettingsDialog(tk.Toplevel):
 
         # 收集快速设置值
         page = {key: float(self.margin_vars[key].get()) for key in ['top', 'bottom', 'left', 'right']}
+        page['header_distance_cm'] = float(self.header_distance_var.get())
+        page['footer_distance_cm'] = float(self.footer_distance_var.get())
+        if any(page[key] < 0 for key in ('top', 'bottom', 'left', 'right')):
+            raise ValueError('页边距不能为负数')
+        if page['left'] + page['right'] >= 21.0:
+            raise ValueError('左右边距之和必须小于纸张宽度')
+        if page['top'] + page['bottom'] >= 29.7:
+            raise ValueError('上下边距之和必须小于纸张高度')
+        if page['header_distance_cm'] < 0 or page['footer_distance_cm'] < 0:
+            raise ValueError('页眉、页脚边距不能为负数')
+        if page['header_distance_cm'] >= 29.7:
+            raise ValueError('页眉距顶边必须小于纸张高度')
+        if page['footer_distance_cm'] >= 29.7:
+            raise ValueError('页脚距底边必须小于纸张高度')
 
         title_size = self._get_size_from_var(self.title_size_var)
         h1_size = self._get_size_from_var(self.h1_size_var)
@@ -2057,11 +2224,10 @@ class CustomSettingsDialog(tk.Toplevel):
             ),
             'outside',
         )
-        try:
-            page_number_offset_mm = float(self.page_number_offset_var.get())
-        except ValueError:
-            page_number_offset_mm = DEFAULT_PAGE_NUMBER_OFFSET_MM
-        page_number_offset_mm = max(0, min(30, page_number_offset_mm))
+        # 兼容旧配置字段；实际页码垂直位置由 footer_distance_cm 控制。
+        page_number_offset_mm = max(
+            0.0, (page['bottom'] - page['footer_distance_cm']) * 10
+        )
 
         # 构建基础设置 — 正文字体联动到多个元素
         self.settings = {
@@ -2137,11 +2303,14 @@ class CustomSettingsDialog(tk.Toplevel):
             'space_handling': self.space_handling_var.get(),
             'first_line_bold': self.first_bold_var.get(),
             'bold_serial': self.bold_serial_var.get(),
+            'split_heading_at_punct': self.split_heading_at_punct_var.get(),
             'deep_clean': self.deep_clean_var.get(),
             'page_number': self.page_number_var.get(),
             'page_number_font': self.page_number_font_var.get(),
             'page_number_size': self._get_size_from_var(self.page_number_size_var),
             'page_number_style': page_number_style,
+            'page_number_prefix': self.page_number_prefix_var.get(),
+            'page_number_suffix': self.page_number_suffix_var.get(),
             'page_number_position': page_number_position,
             'page_number_offset_mm': page_number_offset_mm,
             'replace_existing_page_number': self.replace_page_number_var.get(),
@@ -2624,7 +2793,7 @@ _MD_HEADING_NUMBER_PATTERNS = (
     _md_re.compile(r'^[一二三四五六七八九十百千万零〇两]+[、.．]\s*'),
     _md_re.compile(r'^[（(][一二三四五六七八九十百千万零〇两]+[）)][、.．]?\s*'),
     _md_re.compile(r'^[（(]\d{1,3}[）)][、.．]?\s*'),
-    _md_re.compile(r'^\d{1,3}(?:[.．]\d{1,3})+[、.．](?!\d)\s*'),
+    _md_re.compile(r'^\d{1,3}(?:[.．]\d{1,3})+(?:[、.．](?!\d)\s*|\s+)'),
     _md_re.compile(r'^\d{1,3}、\s*'),
     _md_re.compile(r'^\d{1,3}[.．](?!\d)\s*'),
 )
@@ -4571,7 +4740,16 @@ class DocFormatApp:
             self.preset.set('custom')
             self.log_panel.log("自定义格式设置已保存", 'success')
         
-        CustomSettingsDialog(self.root, on_save=on_save)
+        try:
+            CustomSettingsDialog(self.root, on_save=on_save)
+        except Exception as exc:
+            print(f"[错误] 无法打开自定义设置: {exc}")
+            messagebox.showerror(
+                "无法打开自定义设置",
+                "自定义设置加载失败，请重启程序后重试。\n\n"
+                f"错误信息：{exc}",
+                parent=self.root,
+            )
 
     def _open_paste_dialog(self):
         """打开粘贴文本对话框。"""
