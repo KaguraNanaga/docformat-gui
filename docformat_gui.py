@@ -17,7 +17,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from pathlib import Path
 
-# 添加scripts目录到路径
+# Add the local scripts directory to the import path.
 PROJECT_ROOT = Path(__file__).parent
 SCRIPT_DIR = PROJECT_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -861,7 +861,8 @@ class CustomSettingsDialog(tk.Toplevel):
         self.configure(bg=Theme.BG)
         self.resizable(True, True)
         
-        # 模态窗口在控件全部创建后再显示，避免初始化异常留下隐藏抓取窗口。
+        # Show the modal window only after all widgets are ready, so a failed
+        # initialization cannot leave behind a hidden window holding the grab.
         self.transient(parent)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -1407,7 +1408,8 @@ class CustomSettingsDialog(tk.Toplevel):
         for entry in (prefix_entry, suffix_entry):
             entry.bind('<KeyRelease>', self._activate_custom_page_number, add='+')
 
-        # 保留旧字段用于读取旧配置；新版垂直位置由“页脚距底边”统一控制。
+        # Retain the legacy field for configuration compatibility; new versions
+        # use the explicit footer-to-edge distance for vertical placement.
         self.page_number_offset_var = tk.StringVar(
             value=str(self.settings.get('page_number_offset_mm', DEFAULT_PAGE_NUMBER_OFFSET_MM))
         )
@@ -2224,7 +2226,8 @@ class CustomSettingsDialog(tk.Toplevel):
             ),
             'outside',
         )
-        # 兼容旧配置字段；实际页码垂直位置由 footer_distance_cm 控制。
+        # Keep the legacy value for compatibility. Actual vertical placement is
+        # controlled by footer_distance_cm.
         page_number_offset_mm = max(
             0.0, (page['bottom'] - page['footer_distance_cm']) * 10
         )
