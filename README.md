@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://gongwengeshizhushou.com">官方网站</a> ·
   <a href="#下载安装">立即下载</a> ·
   <a href="#核心能力">核心能力</a> ·
   <a href="#使用方法">使用方法</a> ·
@@ -23,6 +24,10 @@
 </p>
 
 ---
+
+## 官方网站
+
+访问 [公文格式助手官网](https://gongwengeshizhushou.com)，集中了解开源版本、Skills 产品以及产品的最新信息。
 
 ## 项目简介
 
