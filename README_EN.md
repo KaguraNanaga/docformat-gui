@@ -30,8 +30,8 @@
 ## Product Links
 
 - **Official Website**: [gongwengeshizhushou.com](https://gongwengeshizhushou.com) — Open-source releases, Skills products, and the latest product information.
-- **Skills GitHub**: [KaguraNanaga/document-format-skills](https://github.com/KaguraNanaga/document-format-skills) — Browse and install the document-formatting Skills.
-- **Online Version**: [web.gongwengeshizhushou.com](https://web.gongwengeshizhushou.com) — Use the online tools directly in your browser.
+- **Skills GitHub**: [KaguraNanaga/document-format-skills](https://github.com/KaguraNanaga/document-format-skills) — Browse and install the document-formatting Skills for direct use with general-purpose Agents.
+- **Online Version**: [web.gongwengeshizhushou.com](https://web.gongwengeshizhushou.com) — Cannot install the desktop app, or want access anytime and anywhere? Use the online tools directly in your browser.
 
 ## Introduction
 
@@ -125,7 +125,7 @@ A: The current version focuses on precise single-file processing. Batch processi
 If this tool helps you, or if you find any bugs, please feel free to contact me:
 
 - **Submit Issue**: [GitHub Issues](https://github.com/KaguraNanaga/docformat-gui/issues)
-- **Email**: legacyofhourai@163.com
+- **Email**: vioviciline@proton.me
 
 ---
 
