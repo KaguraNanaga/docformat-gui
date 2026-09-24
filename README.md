@@ -10,6 +10,8 @@
 
 <p align="center">
   <a href="https://gongwengeshizhushou.com">官方网站</a> ·
+  <a href="https://github.com/KaguraNanaga/document-format-skills">Skills GitHub</a> ·
+  <a href="https://web.gongwengeshizhushou.com">在线版本</a> ·
   <a href="#下载安装">立即下载</a> ·
   <a href="#核心能力">核心能力</a> ·
   <a href="#使用方法">使用方法</a> ·
@@ -25,9 +27,11 @@
 
 ---
 
-## 官方网站
+## 产品入口
 
-访问 [公文格式助手官网](https://gongwengeshizhushou.com)，集中了解开源版本、Skills 产品以及产品的最新信息。
+- **官网**：[gongwengeshizhushou.com](https://gongwengeshizhushou.com) — 汇总开源版本、Skills 产品及最新产品信息。
+- **Skills GitHub**：[KaguraNanaga/document-format-skills](https://github.com/KaguraNanaga/document-format-skills) — 查看并获取公文格式处理 Skills。
+- **在线版本**：[web.gongwengeshizhushou.com](https://web.gongwengeshizhushou.com) — 直接在浏览器中使用在线工具。
 
 ## 项目简介
 
