@@ -16,6 +16,7 @@
   <a href="#核心能力">核心能力</a> ·
   <a href="#使用方法">使用方法</a> ·
   <a href="#常见问题">常见问题</a> ·
+  <a href="https://github.com/KaguraNanaga/document-format-skills">Agent Skill</a> ·
   <a href="README_EN.md">English</a>
 </p>
 
@@ -24,6 +25,10 @@
   <img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange" alt="License">
   <img src="https://img.shields.io/badge/Language-Python-yellow" alt="Language">
 </p>
+
+> 🌐 **[公文格式处理工具网页版已上线](https://web.gongwengeshizhushou.com)**
+>
+> 无需安装、无需登录，打开浏览器即可处理 `.docx` 文档。文档只在当前浏览器中处理，不会上传到服务器；首次加载必要组件后，当前页面可在断网状态下继续使用。
 
 ---
 
