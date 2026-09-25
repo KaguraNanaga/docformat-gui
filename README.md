@@ -9,7 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://web.gongwengeshizhushou.com"><strong>在线使用网页版</strong></a> ·
+  <a href="https://gongwengeshizhushou.com">官方网站</a> ·
+  <a href="https://github.com/KaguraNanaga/document-format-skills">Skills GitHub</a> ·
+  <a href="https://web.gongwengeshizhushou.com">在线版本</a> ·
   <a href="#下载安装">立即下载</a> ·
   <a href="#核心能力">核心能力</a> ·
   <a href="#使用方法">使用方法</a> ·
@@ -29,6 +31,12 @@
 > 无需安装、无需登录，打开浏览器即可处理 `.docx` 文档。文档只在当前浏览器中处理，不会上传到服务器；首次加载必要组件后，当前页面可在断网状态下继续使用。
 
 ---
+
+## 产品入口
+
+- **官网**：[gongwengeshizhushou.com](https://gongwengeshizhushou.com) — 汇总开源版本、Skills 产品及最新产品信息。
+- **Skills GitHub**：[KaguraNanaga/document-format-skills](https://github.com/KaguraNanaga/document-format-skills) — 查看并获取公文格式处理 Skills，直接在通用 Agent 里进行使用。
+- **在线版本**：[web.gongwengeshizhushou.com](https://web.gongwengeshizhushou.com) — 桌面端无法安装，希望随时随地使用？直接在浏览器中使用在线工具。
 
 ## 项目简介
 
@@ -245,7 +253,7 @@ A：目前没有 LoongArch 预编译版本。请使用源码方式运行：`bash
 如果这个工具帮到了你，或者你发现了 Bug，欢迎联系我：
 
 - **提交 Issue**: [GitHub Issues](https://github.com/KaguraNanaga/docformat-gui/issues)
-- **邮件联系**: legacyofhourai@163.com
+- **邮件联系**: vioviciline@proton.me
 
 ---
 
