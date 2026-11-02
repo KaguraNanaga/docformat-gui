@@ -314,40 +314,80 @@ class AboutDialog(tk.Toplevel):
         super().__init__(parent)
         self.title('关于')
         self.configure(bg=Theme.BG)
-        self.resizable(False, False)
+        self.resizable(True, True)
         self.transient(parent)
+        self.bind('<Escape>', lambda e: self.destroy())
 
         body = tk.Frame(self, bg=Theme.BG, padx=24, pady=20)
         body.pack(fill='both', expand=True)
         about_text = (
-            f'公文格式处理工具  v{__version__}\n\n'
-            '一键将 Word 文档排版为标准公文格式\n\n'
-            '本免费开源社区版仅限个人和非商业用途免费使用。\n'
-            '未经许可，不得销售、收费分发或用于其他商业目的。\n\n'
-            '开发者：KaguraNanaga\n'
-            f'许可证：{LICENSE_NAME}\n'
-            f'许可证地址：{LICENSE_URL}\n'
-            'Required Notice: Copyright 2025-2026 KaguraNanaga.\n'
-            '项目地址：github.com/KaguraNanaga/docformat-gui\n\n'
-            '所有文档处理均在本地完成，不上传、不收集任何数据。\n'
-            '处理结果仅供参考，建议人工复核。'
+            "公文格式处理工具 · 免费开源版\n"
+            f"版本：v{__version__}\n\n"
+            "一键整理公文格式，让文档排版更省心。\n\n"
+            "开发者：KaguraNanaga / 今日之明日\n"
+            "官网：gongwengeshizhushou.com\n"
+            "项目地址：github.com/KaguraNanaga/docformat-gui\n\n"
+            "─────────────────────\n\n"
+            "更多版本，适配你的工作方式\n\n"
+            "专业版（Pro）\n\n"
+            "想添加红头、完成各类文档排版，\n"
+            "或用本地部署的 AI 检查错别字和病句？\n\n"
+            "电脑不在身边，领导临时要求修改文档格式？\n"
+            "微信远程操作，一键搞定！\n\n"
+            "欢迎访问官网，体验 Pro 专业版。\n\n"
+            "─────────────────────\n\n"
+            "Word / WPS 插件版\n\n"
+            "想在 Word 和 WPS 中直接一键调整文档格式？\n"
+            "欢迎使用插件版，现已在官网推出。\n\n"
+            "官网：gongwengeshizhushou.com\n"
+            "─────────────────────\n\n"
+            "许可说明\n\n"
+            "本开源版本遵循PolyForm Noncommercial License 1.0.0，\n"
+            "禁止未经授权的个人或团体进行商业化开发。\n\n"
+            "─────────────────────\n\n"
+            "数据安全\n\n"
+            "本免费开源版的文档处理均在本地完成，\n"
+            "不上传文档内容，不收集用户数据。\n\n"
+            "─────────────────────\n\n"
+            "使用说明\n\n"
+            "处理结果建议人工复核。\n"
+            "本软件按“原样”提供，不附带任何担保。\n"
+            "详见项目目录下 DISCLAIMER.md。"
         )
-        tk.Label(
-            body, text=about_text, font=get_font(10), bg=Theme.BG,
-            fg=Theme.TEXT, justify='left', anchor='w', wraplength=500,
-        ).pack(anchor='w')
         actions = tk.Frame(body, bg=Theme.BG)
-        actions.pack(fill='x', pady=(16, 0))
+        actions.pack(side='bottom', fill='x', pady=(16, 0))
         tk.Button(
             actions, text='查看使用许可证', command=lambda: _open_web_url(LICENSE_URL),
             bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1, padx=12, pady=7,
         ).pack(side='left')
         tk.Button(
+            actions, text='访问官网',
+            command=lambda: _open_web_url('https://gongwengeshizhushou.com'),
+            bg=Theme.CARD, fg=Theme.PRIMARY, relief='solid', bd=1, padx=12, pady=7,
+        ).pack(side='left', padx=(8, 0))
+        tk.Button(
             actions, text='关闭', command=self.destroy,
             bg=Theme.CARD, fg=Theme.TEXT_SECONDARY, activebackground=Theme.BORDER_LIGHT,
             activeforeground=Theme.TEXT, relief='solid', bd=1, padx=12, pady=7,
         ).pack(side='right')
-        _fit_dialog_to_screen(self, parent, 570, 450, 500, 360)
+
+        content = tk.Frame(body, bg=Theme.BG)
+        content.pack(fill='both', expand=True)
+        scrollbar = ttk.Scrollbar(content, orient='vertical')
+        scrollbar.pack(side='right', fill='y')
+        text = tk.Text(
+            content, wrap='word', font=get_font(11),
+            bg=Theme.CARD, fg=Theme.TEXT, relief='flat',
+            padx=Theme.SPACE_MD, pady=Theme.SPACE_MD,
+            yscrollcommand=scrollbar.set,
+        )
+        text.pack(side='left', fill='both', expand=True)
+        scrollbar.configure(command=text.yview)
+        text.insert('1.0', about_text)
+        text.configure(state='disabled')
+        _fit_dialog_to_screen(
+            self, parent, ui_px(680), ui_px(760), ui_px(420), ui_px(360)
+        )
 
 
 # ===== 配置管理 =====
@@ -4439,7 +4479,7 @@ class DocFormatApp:
         
         tk.Label(
             footer,
-            text="© 2025-2026 KaguraNanaga · PolyForm NC 1.0.0",
+            text="© 2026 今日之明日 · 免费开源版 · PolyForm Noncommercial 1.0.0",
             font=get_font(9),
             bg=Theme.BG,
             fg=Theme.TEXT_MUTED
@@ -5356,23 +5396,41 @@ class DocFormatApp:
         self.log_panel.log(f"应用格式: {preset_label}", 'success')
 
 
-def main():
+def _discard_half_built_root():
+    """TkinterDnD.Tk() 先完成 tkinter.Tk.__init__ 再加载 tkdnd。
+    加载失败时，半成品根窗口已经成了 tkinter 的默认根窗口，必须销毁，
+    否则之后没写 master 的 StringVar/BooleanVar 都会建到它的解释器里。"""
+    stale = getattr(tk, '_default_root', None)
+    if stale is not None:
+        try:
+            stale.destroy()
+        except Exception:
+            pass
+    if getattr(tk, '_default_root', None) is not None:
+        tk._default_root = None
+
+
+def _create_root():
     global _DND_AVAILABLE
-    _enable_windows_high_dpi()
-    
     if _DND_AVAILABLE:
         try:
-            root = TkinterDnD.Tk()
+            return TkinterDnD.Tk()
         except Exception as e:
-            # 某些打包环境下 python 模块可导入，但 tkdnd 运行库实际缺失。
-            # 这里自动降级到普通 Tk，保证程序至少能启动使用。
             print(f"[警告] 拖拽运行库加载失败，已降级为普通模式: {e}")
             _DND_AVAILABLE = False
-            root = tk.Tk()
-    else:
-        if getattr(sys, 'frozen', False) and sys.platform == 'darwin':
-            print("[信息] macOS 打包版当前默认关闭拖拽功能，以优先保证应用可正常启动。")
-        root = tk.Tk()
+            _discard_half_built_root()
+    elif getattr(sys, 'frozen', False) and sys.platform == 'darwin':
+        print("[信息] macOS 打包版当前默认关闭拖拽功能，以优先保证应用可正常启动。")
+    root = tk.Tk()
+    if getattr(tk, '_default_root', root) is not root:
+        print("[警告] 检测到残留的 Tk 根窗口，已改用当前窗口作为默认根窗口")
+        tk._default_root = root
+    return root
+
+
+def main():
+    _enable_windows_high_dpi()
+    root = _create_root()
     _configure_tk_high_dpi(root)
     app = DocFormatApp(root)
     root.mainloop()
