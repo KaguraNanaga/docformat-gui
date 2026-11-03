@@ -33,7 +33,7 @@ _configure_console_encoding()
 # Application configuration
 APP_NAME = "公文格式处理工具"
 APP_NAME_EN = "DocFormatter"
-VERSION = "1.8.8.3"
+VERSION = "1.8.8.5"
 MAIN_SCRIPT = "docformat_gui.py"
 MACOS_APP_BUNDLE_NAME = os.environ.get("MACOS_APP_BUNDLE_NAME", "公文格式处理助手").strip()
 
@@ -636,12 +636,27 @@ def create_release_notes():
 
 ## 功能
 
-- ✅ 智能一键处理（标点修复 + 格式统一）
+### v{VERSION} 更新
+
+- ✅ 修复拖拽运行库加载失败后，自定义设置为空、修改无法保存的问题
+- ✅ 更新免费开源版“关于”说明，加入专业版、Word / WPS 插件版及官网入口
+- ✅ “关于”窗口支持滚动和调整大小，方便小屏幕阅读
+- ✅ 保留 v1.8.8.4 的全部排版功能，并合入 main 上的修复
+
+### v1.8.8.4 更新
+
+- ✅ 界面升级为统一的暖米色现代布局，并完善高 DPI 与窗口适配
+- ✅ 新增自定义段落类型与本地版式规则、从样例学习样式
+- ✅ 增强自动编号、表格、页面、页眉页脚和页码排版能力
+- ✅ 支持粘贴文本或 Markdown 生成 Word
+- ✅ 修复文件选择后无法开始处理，并显示批量文件数量与清单
+
+- ✅ 一键处理（标点修复 + 格式统一）
 - ✅ 格式诊断
 - ✅ 标点符号修复
 - ✅ 支持 GB/T 公文标准、学术论文、法律文书格式
 - ✅ 中文禁则、图片附件保护和可自定义标题中英文字体
-- ✅ 免费开源社区版非商业许可提示
+- ✅ 免费开源版非商业许可提示
 
 ## 系统要求
 

@@ -2,6 +2,7 @@
 
 # License lineage DFG-8E3EC1A1E9: original docformat-gui by KaguraNanaga; preserve attribution and all PolyForm-Noncommercial-1.0.0 Required Notices.
 
+import ast
 from pathlib import Path
 
 
@@ -32,12 +33,23 @@ def test_license_history_keeps_the_mit_boundary_explicit():
     assert "PolyForm Noncommercial License 1.0.0" in history
 
 
-def test_application_and_build_versions_mark_the_first_polyform_release():
+def test_application_and_build_versions_agree_and_use_polyform_license():
     gui_source = _read("docformat_gui.py")
     build_source = _read("build.py")
 
-    assert "__version__ = '1.8.8.3'" in gui_source
-    assert 'VERSION = "1.8.8.3"' in build_source
+    def declared_version(source, name):
+        for node in ast.parse(source).body:
+            if isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Name) and target.id == name
+                for target in node.targets
+            ):
+                return ast.literal_eval(node.value)
+        raise AssertionError(f"Missing version declaration: {name}")
+
+    gui_version = declared_version(gui_source, "__version__")
+    build_version = declared_version(build_source, "VERSION")
+    assert gui_version == build_version
+    assert tuple(map(int, gui_version.split("."))) >= (1, 8, 8, 3)
     assert "LICENSE_NAME = 'PolyForm Noncommercial License 1.0.0'" in gui_source
     assert "LICENSE_URL = 'https://polyformproject.org/licenses/noncommercial/1.0.0'" in gui_source
 
