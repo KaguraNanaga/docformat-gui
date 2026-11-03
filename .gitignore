@@ -8,6 +8,17 @@ build/
 dist/
 *.spec
 
+# Local packaging and visual QA artifacts
+preview-build-*/
+preview-dist-*/
+preview-debug-build-*/
+preview-debug-dist-*/
+preview-run-*/
+free-open-source-build-*/
+free-open-source-exe-*/
+free-open-source-exe-*.png
+batch-selection-visual-check.png
+
 # Virtual environments
 venv/
 env/

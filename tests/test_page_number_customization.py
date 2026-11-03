@@ -242,3 +242,40 @@ def test_static_page_like_footer_can_be_replaced():
 
     assert "第 " in _footer_text(footer)
     assert "PAGE" in footer._element.xml
+
+
+def test_custom_page_number_prefix_suffix_and_footer_distance():
+    doc = Document()
+    section = doc.sections[0]
+    add_page_number(
+        doc,
+        style="custom",
+        prefix="[",
+        suffix="]",
+        position="center",
+        footer_distance_cm=1.8,
+    )
+
+    assert "[" in _footer_text(section.footer)
+    assert "]" in _footer_text(section.footer)
+    assert "PAGE" in section.footer._element.xml
+    assert abs(section.footer_distance.cm - 1.8) < 0.02
+
+
+def test_last_page_can_hide_page_number_with_word_fields():
+    doc = Document()
+    add_page_number(
+        doc,
+        style="custom",
+        prefix="-",
+        suffix="-",
+        hide_last_page=True,
+        position="center",
+    )
+
+    footer_xml = doc.sections[0].footer._element.xml
+    settings_xml = doc.settings._element.xml
+    assert "IF" in footer_xml
+    assert "PAGE" in footer_xml
+    assert "NUMPAGES" in footer_xml
+    assert "updateFields" in settings_xml
