@@ -432,8 +432,10 @@ def analyze_reference_layout(path, *, base_settings=None):
     settings["deep_clean"] = False
     settings["remove_background"] = False
     settings["split_heading_at_punct"] = False
+    settings["split_heading_mode"] = "off"
     settings["first_line_bold"] = False
     settings["bold_serial"] = False
+    settings["bold_serial_sentence"] = False
     settings["page_number"] = _footer_has_page_number(doc)
     settings["layout_source"] = {
         "file_name": path.name,

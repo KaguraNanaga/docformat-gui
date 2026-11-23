@@ -969,6 +969,9 @@ def _ensure_attachment_page_starts(doc):
             para.paragraph_format.page_break_before = True
 
 
+_HEADING2_PREFIX = re.compile(r'^(?:（\s*[一二三四五六七八九十]+\s*）|\(\s*[一二三四五六七八九十]+\s*\))')
+
+
 def detect_para_type(text, index, total, alignment, all_texts, all_texts_index=None, prev_para_type=None):
     """
     检测段落类型
@@ -1044,9 +1047,7 @@ def detect_para_type(text, index, total, alignment, all_texts, all_texts_index=N
         return 'heading1'
     
     # ===== 二级标题："（一）" "（二）" 等 =====
-    if re.match(r'^（[一二三四五六七八九十]+）', text):
-        return 'heading2'
-    if re.match(r'^\([一二三四五六七八九十]+\)', text):
+    if _HEADING2_PREFIX.match(text):
         return 'heading2'
     
     # ===== 三级标题："1." "2." 等 =====
@@ -1234,44 +1235,78 @@ def detect_generic_para_type(
     return 'body'
 
 
-def _split_heading_by_punct(paragraph):
-    """Split heading like '（三）xxx：正文' or '（三）xxx。正文' into heading paragraph + body paragraph."""
-    # Splitting rewrites the paragraph's runs. Never do that when it would remove
-    # an inline drawing, legacy picture, or embedded object.
-    if _paragraph_has_media(paragraph):
+def get_heading_split_mode(settings):
+    mode = settings.get('split_heading_mode')
+    if mode in ('auto', 'all', 'off'):
+        return mode
+    if settings.get('split_heading_at_punct', False):
+        return 'all'
+    layout_mode = str(settings.get('layout_mode') or 'official').strip().lower()
+    return 'off' if layout_mode == 'generic' else 'auto'
+
+
+def _has_plain_text_runs(paragraph):
+    """Restrict text splitting to runs without links, fields or other inline objects."""
+    return all(
+        child.tag == qn('w:pPr') or (
+            child.tag == qn('w:r') and
+            all(item.tag in (qn('w:rPr'), qn('w:t'), qn('w:tab')) for item in child)
+        )
+        for child in paragraph._p
+    )
+
+
+def _split_run_at(run, offset):
+    text = run.text
+    tail = Run(deepcopy(run._r), run._parent)
+    run.text = text[:offset]
+    tail.text = text[offset:]
+    run._r.addnext(tail._r)
+    return tail
+
+
+def _split_heading_by_punct(paragraph, *, second_level_only=False):
+    """Split a numbered heading and the body that follows it in the same paragraph."""
+    if not _has_plain_text_runs(paragraph) or paragraph._p.xpath('./w:pPr/w:sectPr'):
         return False
-    text = paragraph.text.strip()
-    if not text:
+    raw_text = paragraph.text
+    text = raw_text.lstrip()
+    prefix = _HEADING2_PREFIX.match(text)
+    if second_level_only and not prefix:
+        return False
+    if not prefix:
+        prefix = re.match(r'^(?:[一二三四五六七八九十]+、|\d+\.(?=\s*\S)|（\d+）|\(\d+\))', text)
+    if not prefix:
         return False
 
-    # Heading prefix patterns
-    if not (
-        re.match(r'^[一二三四五六七八九十]+、', text) or
-        re.match(r'^（[一二三四五六七八九十]+）', text) or
-        re.match(r'^\([一二三四五六七八九十]+\)', text) or
-        re.match(r'^\d+\.\s*\S', text) or
-        re.match(r'^（\d+）', text) or
-        re.match(r'^\(\d+\)', text)
-    ):
+    punct = re.compile('。' if second_level_only else '[：:。]').search(text, prefix.end())
+    if not punct or not text[punct.end():].strip():
         return False
+    if second_level_only:
+        heading = text[prefix.end():punct.start()].strip()
+        tail = text[punct.end():].lstrip()
+        # A short phrase followed by a full stop is a useful signal. Avoid
+        # breaking lists of full sentences or splitting inside quoted material.
+        if not 2 <= len(heading) <= 24 or re.search(r'[，,；;！？!?：:“”‘’「」『』]', heading):
+            return False
+        if any(heading.count(opening) != heading.count(closing) for opening, closing in ('（）', '()', '《》')):
+            return False
+        if not re.match(r'[\w“‘《（(]', tail):
+            return False
 
-    # Find split punctuation position
-    punct_positions = []
-    for ch in ('：', ':', '。'):
-        pos = text.find(ch)
-        if pos != -1:
-            punct_positions.append(pos)
-    if not punct_positions:
-        return False
-    split_idx = min(punct_positions)
-    head = text[:split_idx + 1].strip()
-    tail = text[split_idx + 1:].strip()
-    if not tail:
-        return False
-
-    paragraph.text = head
-    new_para = _insert_paragraph_after_paragraph(paragraph, text=tail)
-    return new_para is not None
+    remaining = len(raw_text) - len(text) + punct.end()
+    new_para = _insert_paragraph_after_paragraph(paragraph)
+    for run in paragraph.runs:
+        length = len(run.text)
+        if remaining >= length and remaining > 0:
+            remaining -= length
+            continue
+        if remaining > 0:
+            run = _split_run_at(run, remaining)
+            remaining = 0
+        new_para._p.append(run._r)
+    _strip_leading_whitespace_runs(new_para)
+    return True
 
 
 def _find_paragraph_index(doc, target_para):
@@ -1619,9 +1654,57 @@ def _strip_leading_whitespace_runs(para):
         run.text = ''
 
 
+_SERIAL_PREFIX = re.compile(
+    r'[ \t\u3000]*(?:[一二三四五六七八九十]{1,3}(?:是|要|方面)[：:、]?'
+    r'|第[一二三四五六七八九十百\d]+[点条项步][：:、，,]?)'
+)
+_SERIAL_SENTENCE_END = re.compile(r'(?:[。！？!?；;]+|\.(?=\s|$))[”’」』】）]*')
+
+
+def _body_bold_ranges(text, first_line_bold, bold_serial, bold_serial_sentence):
+    ranges = []
+    if first_line_bold and '。' in text:
+        ranges.append((0, text.index('。') + 1))
+    if bold_serial and bold_serial_sentence:
+        start = 0
+        ends = [match.end() for match in _SERIAL_SENTENCE_END.finditer(text)]
+        for end in ends + [len(text)]:
+            if start < end and _SERIAL_PREFIX.match(text, start, end):
+                ranges.append((start, end))
+            start = end
+    elif bold_serial and not first_line_bold:
+        match = _SERIAL_PREFIX.match(text)
+        if match:
+            ranges.append((0, match.end()))
+    return ranges
+
+
+def _apply_run_fonts(para, ranges, apply_font, default_bold):
+    # Split only at formatting boundaries, preserving the surrounding runs.
+    events = sorted(
+        (event for start, end in ranges for event in ((start, 1), (end, -1))),
+        reverse=True,
+    )
+    active = 0
+    offset = 0
+    for run in para.runs:
+        end = offset + len(run.text)
+        while events and events[-1][0] < end:
+            boundary, change = events.pop()
+            if boundary > offset:
+                tail = _split_run_at(run, boundary - offset)
+                apply_font(run, default_bold or active > 0)
+                run = tail
+                offset = boundary
+            active += change
+        apply_font(run, default_bold or active > 0)
+        offset = end
+
+
 def format_paragraph(
     para, fmt, para_type, line_spacing_pt=28, first_line_bold=False,
     revision_mode=False, bold_serial=True, preserve_inline_emphasis=False,
+    bold_serial_sentence=False,
 ):
     """格式化段落
     
@@ -1746,59 +1829,10 @@ def format_paragraph(
         if saved_color is not None:
             run.font.color.rgb = saved_color
     
-    # 字体 - 支持首句加粗
-    if first_line_bold and para_type == 'body':
-        # 首句以中文句号“。”作为结束
-        full_text = para.text
-        first_sentence_end = full_text.find('。')
-        if first_sentence_end != -1 and not has_media:
-            split_idx = first_sentence_end + 1
-            first_part = full_text[:split_idx]
-            rest_part = full_text[split_idx:]
-            
-            # 重新构建 runs，确保只加粗首句
-            for run in list(para.runs):
-                para._p.remove(run._r)
-            
-            run1 = para.add_run(first_part)
-            _apply_run_font(run1, True)
-            
-            if rest_part:
-                run2 = para.add_run(rest_part)
-                _apply_run_font(run2, fmt.get('bold', False))
-        else:
-            # 没找到中文句号，正常处理
-            for run in para.runs:
-                _apply_run_font(run, fmt.get('bold', False))
-    else:
-        # 正文里的序列词加粗前缀
-        if bold_serial and para_type == 'body' and not has_media:
-            _SERIAL_PATTERNS = [
-                r'^([一二三四五六七八九十]{1,3}是)([：:、]?)',       # 一是、二是
-                r'^([一二三四五六七八九十]{1,3}要)([：:、]?)',       # 一要、二要
-                r'^(第[一二三四五六七八九十百\d]+[点条项步])([：:、，,]?)',  # 第一点、第二条
-                r'^([一二三四五六七八九十]{1,3}方面)([：:、]?)',     # 一方面、二方面
-            ]
-            m = None
-            for _pat in _SERIAL_PATTERNS:
-                m = re.match(_pat, para.text)
-                if m:
-                    break
-            if m:
-                lead = m.group(1) + (m.group(2) or '')
-                rest = para.text[len(lead):]
-                for run in list(para.runs):
-                    para._p.remove(run._r)
-                run1 = para.add_run(lead)
-                _apply_run_font(run1, True)
-                if rest:
-                    run2 = para.add_run(rest)
-                    _apply_run_font(run2, fmt.get('bold', False))
-                return
-
-        # 正常处理
-        for run in para.runs:
-            _apply_run_font(run, fmt.get('bold', False))
+    ranges = []
+    if para_type == 'body' and (first_line_bold or bold_serial) and _has_plain_text_runs(para):
+        ranges = _body_bold_ranges(para.text, first_line_bold, bold_serial, bold_serial_sentence)
+    _apply_run_fonts(para, ranges, _apply_run_font, fmt.get('bold', False))
 
     # 修订模式：若段落格式有改动则嵌入 pPrChange
     if revision_mode and para._p.xml != orig_ppr_xml:
@@ -2341,13 +2375,13 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
     if preset.get('deep_clean', False):
         deep_clean_document(doc)
 
-    # 将“标题+标点+正文”拆分为标题段+正文段
-    # v1.7.1：默认关闭，避免破坏用户故意写成一行的合法格式（如
-    # "1. 第一阶段：完成报废资产清单整理"）。需要这个拆分的用户
-    # 可以在 preset 里设置 split_heading_at_punct=True。
-    if preset.get('split_heading_at_punct', False):
+    split_mode = get_heading_split_mode(preset)
+    split_body_paragraphs = set()
+    if split_mode != 'off':
+        automatic_split = split_mode == 'auto'
         for para in list(doc.paragraphs):
-            _split_heading_by_punct(para)
+            if _split_heading_by_punct(para, second_level_only=automatic_split) and automatic_split:
+                split_body_paragraphs.add(para._p.getnext())
 
     # 进度回调辅助函数
     def _progress(current, total, stage):
@@ -2428,7 +2462,9 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
                 _compact_empty_paragraph(para)
             continue
 
-        if generic_mode:
+        if para._p in split_body_paragraphs:
+            para_type = 'body'
+        elif generic_mode:
             text_index = all_texts_idx_map.get(i)
             next_text = (
                 all_texts[text_index + 1]
@@ -2484,6 +2520,7 @@ def format_document(input_path, output_path, preset_name='official', progress_ca
             first_line_bold=first_line_bold,
             revision_mode=revision_mode,
             bold_serial=bold_serial,
+            bold_serial_sentence=preset.get('bold_serial_sentence', False),
             preserve_inline_emphasis=generic_mode,
         )
         if para_type.startswith('custom:'):

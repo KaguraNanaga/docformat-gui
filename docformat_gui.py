@@ -38,7 +38,9 @@ SCRIPT_DIR = PROJECT_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from scripts.analyzer import analyze_punctuation, analyze_numbering, analyze_paragraph_format, analyze_font
-from scripts.formatter import format_document, PRESETS, DEFAULT_PAGE_NUMBER_OFFSET_MM
+from scripts.formatter import (
+    DEFAULT_PAGE_NUMBER_OFFSET_MM, PRESETS, format_document, get_heading_split_mode,
+)
 from scripts.layout_analyzer import LayoutAnalysisError, analyze_reference_layout
 from scripts.layout_rules import ParagraphRuleError, compile_rule_set, ensure_paragraph_rule_defaults
 from layout_rules_dialog import ParagraphRulesDialog
@@ -505,6 +507,16 @@ PAGE_NUMBER_POSITION_OPTIONS = {
     'right': '全部居右',
     'left': '全部居左',
 }
+SERIAL_BOLD_OPTIONS = {
+    'prefix': '仅加粗序列词',
+    'sentence': '加粗序列词所在句子',
+    'off': '关闭',
+}
+HEADING_SPLIT_OPTIONS = {
+    'auto': '自动拆分连写的二级标题',
+    'all': '按冒号或句号拆分各级标题',
+    'off': '不拆分',
+}
 
 def _init_system_fonts():
     """
@@ -619,6 +631,7 @@ DEFAULT_CUSTOM_SETTINGS = {
     'space_handling': 'remove_all',
     'first_line_bold': False,
     'bold_serial': True,
+    'bold_serial_sentence': False,
     'split_heading_at_punct': False,
     'deep_clean': False,
     'remove_background': True,
@@ -1473,23 +1486,16 @@ class CustomSettingsDialog(tk.Toplevel):
             special_frame, "正文段落首句加粗", self.first_bold_var, font_size=12
         ).pack(anchor='w', padx=6, pady=3)
 
-        self.bold_serial_var = tk.BooleanVar(value=self.settings.get('bold_serial', True))
-        self._create_inline_toggle(
-            special_frame,
-            "「一是/一要/第一条」等序列词自动加粗",
-            self.bold_serial_var,
-            font_size=12,
-        ).pack(anchor='w', padx=6, pady=3)
-
-        self.split_heading_at_punct_var = tk.BooleanVar(
-            value=self.settings.get('split_heading_at_punct', False)
-        )
-        self._create_inline_toggle(
-            special_frame,
-            "标题后有冒号或句号时，将后续正文另起一段",
-            self.split_heading_at_punct_var,
-            font_size=12,
-        ).pack(anchor='w', padx=6, pady=3)
+        self.serial_bold_mode_var = tk.StringVar()
+        self.heading_split_mode_var = tk.StringVar()
+        for label, variable, options in (
+            ("序列词加粗（一是、二是等）", self.serial_bold_mode_var, SERIAL_BOLD_OPTIONS),
+            ("标题与正文拆分", self.heading_split_mode_var, HEADING_SPLIT_OPTIONS),
+        ):
+            row = tk.Frame(special_frame, bg=Theme.BG)
+            row.pack(anchor='w', padx=6, pady=3)
+            tk.Label(row, text=label, font=get_font(11), bg=Theme.BG, fg=Theme.TEXT).pack(side='left', padx=(0, 8))
+            self._create_combobox(row, variable, list(options.values()), width=26).pack(side='left')
 
         self.deep_clean_var = tk.BooleanVar(value=self.settings.get('deep_clean', False))
         self._create_inline_toggle(
@@ -2427,8 +2433,11 @@ class CustomSettingsDialog(tk.Toplevel):
             
             # 特殊选项
             self.first_bold_var.set(s.get('first_line_bold', False))
-            self.bold_serial_var.set(s.get('bold_serial', True))
-            self.split_heading_at_punct_var.set(s.get('split_heading_at_punct', False))
+            serial_bold_mode = 'off'
+            if s.get('bold_serial', True):
+                serial_bold_mode = 'sentence' if s.get('bold_serial_sentence', False) else 'prefix'
+            self.serial_bold_mode_var.set(SERIAL_BOLD_OPTIONS[serial_bold_mode])
+            self.heading_split_mode_var.set(HEADING_SPLIT_OPTIONS[get_heading_split_mode(s)])
             self.deep_clean_var.set(s.get('deep_clean', False))
             self.space_handling_var.set(s.get('space_handling', 'remove_all'))
             self.page_number_var.set(s.get('page_number', True))
@@ -2561,6 +2570,16 @@ class CustomSettingsDialog(tk.Toplevel):
         page_number_offset_mm = max(
             0.0, (page['bottom'] - page['footer_distance_cm']) * 10
         )
+        serial_bold_mode = next(
+            (key for key, label in SERIAL_BOLD_OPTIONS.items() if label == self.serial_bold_mode_var.get()),
+            'prefix',
+        )
+        heading_split_mode = next(
+            (key for key, label in HEADING_SPLIT_OPTIONS.items() if label == self.heading_split_mode_var.get()),
+            'auto',
+        )
+        if layout_mode == 'generic':
+            serial_bold_mode = heading_split_mode = 'off'
 
         # 构建基础设置 — 正文字体联动到多个元素
         self.settings = {
@@ -2647,8 +2666,10 @@ class CustomSettingsDialog(tk.Toplevel):
             },
             'space_handling': 'keep_all' if layout_mode == 'generic' else self.space_handling_var.get(),
             'first_line_bold': False if layout_mode == 'generic' else self.first_bold_var.get(),
-            'bold_serial': False if layout_mode == 'generic' else self.bold_serial_var.get(),
-            'split_heading_at_punct': False if layout_mode == 'generic' else self.split_heading_at_punct_var.get(),
+            'bold_serial': serial_bold_mode != 'off',
+            'bold_serial_sentence': serial_bold_mode == 'sentence',
+            'split_heading_at_punct': heading_split_mode == 'all',
+            'split_heading_mode': heading_split_mode,
             'deep_clean': False if layout_mode == 'generic' else self.deep_clean_var.get(),
             'remove_background': layout_mode != 'generic',
             'page_number': self.page_number_var.get(),

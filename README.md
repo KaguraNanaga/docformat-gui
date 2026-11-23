@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://gongwengeshizhushou.com">官方网站</a> ·
+  <a href="https://gongwengeshizhushou.com">授权网站</a> ·
   <a href="https://github.com/KaguraNanaga/document-format-skills">Skills GitHub</a> ·
   <a href="https://web.gongwengeshizhushou.com">在线版本</a> ·
   <a href="#下载安装">立即下载</a> ·
@@ -34,7 +34,7 @@
 
 ## 产品入口
 
-- **官网**：[gongwengeshizhushou.com](https://gongwengeshizhushou.com) — 汇总开源版本、Skills 产品及最新产品信息。
+- **授权网站**：[gongwengeshizhushou.com](https://gongwengeshizhushou.com) — 汇总开源版本、Skills 产品及最新产品信息。
 - **Skills GitHub**：[KaguraNanaga/document-format-skills](https://github.com/KaguraNanaga/document-format-skills) — 查看并获取公文格式处理 Skills，直接在通用 Agent 里进行使用。
 - **在线版本**：[web.gongwengeshizhushou.com](https://web.gongwengeshizhushou.com) — 桌面端无法安装，希望随时随地使用？直接在浏览器中使用在线工具。
 
@@ -50,29 +50,7 @@
 
 **v1.8.8.5 更新：**
 
-* **🛠️ 设置窗口修复** — 拖拽运行库加载失败时清理残留窗口，保证自定义设置正常显示和保存
-* **ℹ️ 关于窗口更新** — 加入专业版、Word / WPS 插件版介绍和官网入口，支持滚动阅读
-* **📦 已发布功能保留** — 保留 v1.8.8.4 的通用排版、样例学习、自动编号和新版界面，并合入后续修复
-
-**v1.8.8.3 更新：**
-
-* **🛠️ 小问题修复** — 修复了一些小 Bug 和小问题，优化使用体验
-
-**v1.8.8.4 更新：**
-
-* **📐 通用文档排版** — 可自定义段落类型和本地匹配规则，支持章、条、语录等非公文结构
-* **📄 从样例学习样式** — 仅在本机读取 `.docx` 的页面、字体、缩进和行距，不复制正文内容
-* **1️⃣ 自动编号规范化** — 将可解析的 Word 自动编号固化为可见文字，避免标题识别和重复编号问题
-* **📊 表格与页面增强** — 支持表格引导段保护、单元格四边边距、文字自动适应、纸张尺寸和横竖方向
-* **📋 文本转 Word** — 可粘贴纯文本或 Markdown 生成 `.docx`
-* **🖥️ 界面适配** — 更新现代控件、高 DPI 缩放和窗口自适应布局
-
-**v1.8.8 更新：**
-
-* **📄 页码设置优化** — 支持四种页码样式、居中或奇偶页外侧位置，并可安全替换已有页码而不覆盖正常页脚内容
-* **🈶 中文换行规则** — 为正文、表格和页眉页脚启用中文禁则，避免标点出现在新行行首
-* **🔤 标题字体细分** — 一级至四级标题均可分别设置中文字体与英文/数字字体
-* **🖼️ 图片与附件保护** — 保留内嵌图片和媒体节点；独立“附件/附件1”等标记另起页并保持后续标题格式
+* 修复了一些小 Bug 和小问题，优化使用体验。
 
 ## 使用许可
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://gongwengeshizhushou.com">Official Website</a> ·
+  <a href="https://gongwengeshizhushou.com">Authorization Website</a> ·
   <a href="https://github.com/KaguraNanaga/document-format-skills">Skills GitHub</a> ·
   <a href="https://web.gongwengeshizhushou.com">Online Version</a> ·
   <a href="#download">Download</a> ·
@@ -34,7 +34,7 @@
 
 ## Product Links
 
-- **Official Website**: [gongwengeshizhushou.com](https://gongwengeshizhushou.com) — Open-source releases, Skills products, and the latest product information.
+- **Authorization Website**: [gongwengeshizhushou.com](https://gongwengeshizhushou.com) — Open-source releases, Skills products, and the latest product information.
 - **Skills GitHub**: [KaguraNanaga/document-format-skills](https://github.com/KaguraNanaga/document-format-skills) — Browse and install the document-formatting Skills for direct use with general-purpose Agents.
 - **Online Version**: [web.gongwengeshizhushou.com](https://web.gongwengeshizhushou.com) — Cannot install the desktop app, or want access anytime and anywhere? Use the online tools directly in your browser.
 
